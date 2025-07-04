@@ -1,0 +1,147 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+sqlx-data.json
+.sqlx/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Development documentation
+CLAUDE.md
+
+# Build outputs
+dist/
+build/
+*.so
+*.dylib
+*.dll
+*.exe
+jauauth
+jauauth-*
+!jauauth-*.sh
+
+# Node.js / TypeScript
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+*.tsbuildinfo
+mcp-server/dist/
+mcp-server/build/
+
+# Test files
+test-*.js
+test-*.sh
+!test-servers/
+*.test.js
+*.spec.js
+coverage/
+.nyc_output/
+
+# Config examples and local configs
+config-examples/
+*-config.json
+!router-config.example.json
+*.example.json
+*.local.json
+claude-*.json
+!package.json
+!tsconfig.json
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+
+# Media and binary files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.pdf
+*.zip
+*.tar.gz
+photos/
+media/
+screenshots/
+
+# Scripts that shouldn't be public
+scripts/test-*.js
+scripts/test-*.sh
+scripts/demo-*.sh
+scripts/jauauth-*
+!scripts/install-sandbox-tools.sh
+
+# Generated files
+migrations/*.sql
+!migrations/001_initial_schema.sql
+
+# Documentation drafts
+docs/*.md
+!docs/ARCHITECTURE.md
+!docs/SANDBOX-SECURITY.md
+!docs/DASHBOARD-README.md
+!docs/TROUBLESHOOTING.md
+*.preview.md
+*-preview.md
+
+# Demo and development files
+demo-*
+start.sh
+start-*.sh
+run-*.sh
+!run-combined-server.sh
+launcher*.sh
+!mcp-launcher.sh
+
+# Binary executables (without extension)
+/jauauth
+/jauauth-launcher
+/jauauth-mcp-launcher
+/sandbox-check
+
+# Web dashboard - keep only essential files
+!web/
+!web/dist/
+!web/dist/**/*.html
+!web/dist/**/*.js
+!web/dist/**/*.css
+
+# Test data
+test-servers/*.js
+!test-servers/echo-server.js
+!test-servers/math-server.js

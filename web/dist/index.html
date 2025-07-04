@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JauAuth Dashboard - MCP Router Management</title>
+    <link rel="stylesheet" href="/assets/theme.css">
+    <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="container">
+                <h1 class="logo">🚀 JauAuth Dashboard</h1>
+                <nav class="nav">
+                    <a href="#overview" class="nav-link active">Overview</a>
+                    <a href="#servers" class="nav-link">Servers</a>
+                    <a href="#tools" class="nav-link">Tools</a>
+                    <a href="#docs" class="nav-link">Docs</a>
+                    <a href="#settings" class="nav-link">Settings</a>
+                    <button class="theme-toggle" onclick="app.toggleTheme()" title="Toggle dark mode">
+                        <span class="theme-icon-light">🌞</span>
+                        <span class="theme-icon-dark">🌙</span>
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <div class="container">
+                <!-- Overview Section -->
+                <section id="overview" class="section active">
+                    <h2>System Overview</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalServers">-</div>
+                            <div class="stat-label">Total Servers</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="healthyServers">-</div>
+                            <div class="stat-label">Healthy Servers</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalTools">-</div>
+                            <div class="stat-label">Available Tools</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="routerUptime">-</div>
+                            <div class="stat-label">Router Uptime</div>
+                        </div>
+                    </div>
+                    
+                    <div class="server-status-list" id="serverStatusList">
+                        <h3>Server Status</h3>
+                        <div class="loading">Loading...</div>
+                    </div>
+                </section>
+
+                <!-- Servers Section -->
+                <section id="servers" class="section">
+                    <div class="section-header">
+                        <h2>MCP Servers</h2>
+                        <button class="btn btn-primary" onclick="app.showAddServerModal()">
+                            + Add Server
+                        </button>
+                    </div>
+                    
+                    <div class="server-list" id="serverList">
+                        <div class="loading">Loading servers...</div>
+                    </div>
+                </section>
+
+                <!-- Tools Section -->
+                <section id="tools" class="section">
+                    <h2>Available Tools</h2>
+                    <div class="tools-list" id="toolsList">
+                        <div class="loading">Loading tools...</div>
+                    </div>
+                </section>
+
+                <!-- Docs Section -->
+                <section id="docs" class="section">
+                    <h2>Documentation</h2>
+                    
+                    <div class="docs-container">
+                        <!-- Table of Contents -->
+                        <div class="docs-toc">
+                            <h3>Contents</h3>
+                            <ul>
+                                <li><a href="#docs-getting-started" class="docs-link">Getting Started</a></li>
+                                <li><a href="#docs-mcp-setup" class="docs-link">MCP Setup</a></li>
+                                <li><a href="#docs-server-config" class="docs-link">Server Configuration</a></li>
+                                <li><a href="#docs-examples" class="docs-link">Examples</a></li>
+                                <li><a href="#docs-security" class="docs-link">Security</a></li>
+                                <li><a href="#docs-troubleshooting" class="docs-link">Troubleshooting</a></li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Documentation Content -->
+                        <div class="docs-content">
+                            <!-- Getting Started -->
+                            <section id="docs-getting-started" class="docs-section active">
+                                <h3>Getting Started with JauAuth</h3>
+                                <p>JauAuth is a centralized MCP (Model Context Protocol) router that allows you to manage multiple MCP servers through a single connection point. It uses a <strong>TypeScript/Rust hybrid architecture</strong> for optimal protocol support and security.</p>
+                                
+                                <h4>🏗️ Architecture Overview</h4>
+                                <div class="docs-info">
+                                    <p><strong>TypeScript MCP Server</strong>: Handles MCP protocol communication using the official SDK</p>
+                                    <p><strong>Rust Backend</strong>: Manages server processes, routing, security, and web dashboard</p>
+                                    <p><strong>Communication</strong>: TypeScript → HTTP API → Rust backend</p>
+                                </div>
+                                
+                                <h4>Quick Start</h4>
+                                <pre><code># 1. Build TypeScript MCP server
+cd mcp-server && npm install && npm run build && cd ..
+
+# 2. Build Rust backend
+cargo build --release
+
+# 3. Run the backend with MCP API
+cargo run -- combined
+
+# 4. Add to Claude (in another terminal)
+claude mcp add jau-auth -- node "/path/to/jau-auth/mcp-server/dist/index.js"
+
+# 5. Open dashboard in browser
+# http://localhost:7447</code></pre>
+                                
+                                <h4>Pre-configured Servers</h4>
+                                <ul>
+                                    <li><strong>echo</strong>: Simple echo test server</li>
+                                    <li><strong>jaumemory</strong>: Persistent memory system with gRPC backend</li>
+                                    <li><strong>jau-tg</strong>: Telegram integration for notifications</li>
+                                </ul>
+                                
+                                <h4>Key Features</h4>
+                                <ul>
+                                    <li><strong>TypeScript/Rust Hybrid</strong>: Best of both worlds - TypeScript for MCP protocol, Rust for backend</li>
+                                    <li><strong>Single Connection Point</strong>: Connect Claude to one router instead of multiple MCP servers</li>
+                                    <li><strong>Automatic Tool Routing</strong>: Tools are prefixed with server IDs (e.g., <code>jaumemory:remember</code>)</li>
+                                    <li><strong>Web Dashboard</strong>: Manage servers and monitor status through a modern UI</li>
+                                    <li><strong>Security Options</strong>: Multiple sandboxing strategies for server isolation</li>
+                                    <li><strong>MCP API</strong>: HTTP endpoints for TypeScript-Rust communication</li>
+                                </ul>
+                            </section>
+                            
+                            <!-- MCP Setup -->
+                            <section id="docs-mcp-setup" class="docs-section">
+                                <h3>MCP Setup</h3>
+                                
+                                <h4>🚀 TypeScript/Rust Hybrid Setup</h4>
+                                
+                                <div class="docs-info">
+                                    <p><strong>Important:</strong> JauAuth now uses a TypeScript MCP server that communicates with the Rust backend. This provides better MCP protocol support while maintaining the powerful Rust backend.</p>
+                                </div>
+                                
+                                <h5>Step 1: Start the Rust Backend</h5>
+                                <pre><code># Run the backend with MCP API support
+cargo run -- combined
+
+# Or use the release build
+./target/release/jau-auth combined</code></pre>
+                                
+                                <h5>Step 2: Add TypeScript MCP Server to Claude</h5>
+                                <pre><code># Add JauAuth TypeScript MCP server
+claude mcp add jau-auth-ts -- node "/path/to/jau-auth/mcp-server/dist/index.js"
+
+# Example with full path
+claude mcp add jau-auth-ts -- node "/mnt/r/devR/AI/Jau/JauAuth/mcp-server/dist/index.js"</code></pre>
+                                
+                                <h5>Alternative: Manual Configuration</h5>
+                                <p>Edit your Claude Desktop configuration file:</p>
+                                
+                                <pre><code># ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)
+# %APPDATA%\Claude\claude_desktop_config.json (Windows)
+{
+  "mcpServers": {
+    "jau-auth-ts": {
+      "command": "node",
+      "args": ["/path/to/jau-auth/mcp-server/dist/index.js"]
+    }
+  }
+}</code></pre>
+                                
+                                <h4>Router Configuration</h4>
+                                <p>The <code>router-config.json</code> file defines your MCP servers:</p>
+                                
+                                <pre><code>{
+  "timeout_ms": 30000,
+  "cache_tools": true,
+  "servers": [
+    {
+      "id": "echo",
+      "name": "Echo Test Server",
+      "command": "node",
+      "args": ["/path/to/echo-server.js"],
+      "sandbox": { "strategy": "none" }
+    },
+    {
+      "id": "jaumemory",
+      "name": "JauMemory",
+      "command": "node",
+      "args": ["/path/to/jaumemory/mcp-server/dist/index.js"],
+      "env": {
+        "GRPC_SERVER_ADDRESS": "localhost:50051",
+        "DEFAULT_USER_ID": "$USER"
+      },
+      "sandbox": {
+        "strategy": "none",
+        "env_passthrough": ["HOME", "USER", "PATH"]
+      }
+    }
+  ]
+}</code></pre>
+                                
+                                <h4>Environment Variables</h4>
+                                <pre><code># TypeScript MCP Server
+export RUST_BACKEND_URL=http://localhost:7447  # Default
+export API_TIMEOUT=30000                        # API timeout in ms
+export LOG_LEVEL=info                           # Logging level
+
+# Rust Backend
+export JAUAUTH_PORT=7447                        # Dashboard port
+export JAUAUTH_DATABASE_URL=sqlite://jauauth.db # Database path
+export JAUAUTH_LOG_LEVEL=info                   # Rust log level</code></pre>
+                                
+                                <h4>Available Tools</h4>
+                                <p>When all servers are running, you'll have access to:</p>
+                                <ul>
+                                    <li><code>router:status</code> - Get router status</li>
+                                    <li><code>router:list_servers</code> - List configured servers</li>
+                                    <li><code>echo:echo</code> - Echo test tool</li>
+                                    <li><code>jaumemory:remember</code>, <code>jaumemory:recall</code> - Memory tools</li>
+                                    <li><code>jau-tg:send_message</code>, <code>jau-tg:send_alert</code> - Telegram tools</li>
+                                </ul>
+                            </section>
+                            
+                            <!-- Server Configuration -->
+                            <section id="docs-server-config" class="docs-section">
+                                <h3>Server Configuration</h3>
+                                
+                                <h4>Configuration Fields</h4>
+                                <table class="docs-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Field</th>
+                                            <th>Type</th>
+                                            <th>Description</th>
+                                            <th>Required</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><code>id</code></td>
+                                            <td>string</td>
+                                            <td>Unique identifier for the server</td>
+                                            <td>Yes</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>name</code></td>
+                                            <td>string</td>
+                                            <td>Human-readable display name</td>
+                                            <td>Yes</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>command</code></td>
+                                            <td>string</td>
+                                            <td>Executable to run (npx, node, python, etc.)</td>
+                                            <td>Yes</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>args</code></td>
+                                            <td>array</td>
+                                            <td>Command arguments</td>
+                                            <td>Yes</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>env</code></td>
+                                            <td>object</td>
+                                            <td>Environment variables</td>
+                                            <td>No</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>requires_auth</code></td>
+                                            <td>boolean</td>
+                                            <td>Require authentication to use</td>
+                                            <td>No</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>allowed_users</code></td>
+                                            <td>array</td>
+                                            <td>List of allowed users/roles</td>
+                                            <td>No</td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>sandbox</code></td>
+                                            <td>object</td>
+                                            <td>Security sandbox configuration</td>
+                                            <td>Yes</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                
+                                <h4>Sandbox Strategies Explained</h4>
+                                <p>Sandboxing keeps your MCP servers isolated from your system. Think of it like putting each server in its own secure room. Here's when to use each option:</p>
+                                
+                                <div class="docs-cards">
+                                    <div class="docs-card">
+                                        <h5>🚫 None (No Sandbox)</h5>
+                                        <div class="sandbox-when">
+                                            <strong>When to use:</strong>
+                                            <ul>
+                                                <li>You're just testing or learning</li>
+                                                <li>You trust the server completely (you wrote it)</li>
+                                                <li>The server needs full access to your system</li>
+                                            </ul>
+                                        </div>
+                                        <div class="sandbox-risk">
+                                            <strong>Risk Level:</strong> <span class="risk-high">High</span> - Server can access everything
+                                        </div>
+                                        <pre><code>"sandbox": {
+  "strategy": "none"
+}</code></pre>
+                                    </div>
+                                    
+                                    <div class="docs-card">
+                                        <h5>🐋 Docker (Container)</h5>
+                                        <div class="sandbox-when">
+                                            <strong>When to use:</strong>
+                                            <ul>
+                                                <li>Running untrusted or third-party servers</li>
+                                                <li>You want maximum security</li>
+                                                <li>Server doesn't need direct system access</li>
+                                            </ul>
+                                        </div>
+                                        <div class="sandbox-risk">
+                                            <strong>Risk Level:</strong> <span class="risk-low">Very Low</span> - Fully isolated container
+                                        </div>
+                                        <div class="sandbox-requires">
+                                            <strong>Requires:</strong> Docker Desktop installed
+                                        </div>
+                                        <pre><code>"sandbox": {
+  "strategy": {
+    "docker": {
+      "image": "node:18-alpine",
+      "mounts": ["/data:/data:ro"]
+    }
+  }
+}</code></pre>
+                                    </div>
+                                    
+                                    <div class="docs-card">
+                                        <h5>🦭 Podman (Rootless Container)</h5>
+                                        <div class="sandbox-when">
+                                            <strong>When to use:</strong>
+                                            <ul>
+                                                <li>Same as Docker, but more secure</li>
+                                                <li>Your organization doesn't allow Docker</li>
+                                                <li>You want containers without root access</li>
+                                            </ul>
+                                        </div>
+                                        <div class="sandbox-risk">
+                                            <strong>Risk Level:</strong> <span class="risk-low">Very Low</span> - No root privileges needed
+                                        </div>
+                                        <div class="sandbox-requires">
+                                            <strong>Requires:</strong> Podman installed
+                                        </div>
+                                        <pre><code>"sandbox": {
+  "strategy": {
+    "podman": {
+      "image": "python:3.11-slim"
+    }
+  }
+}</code></pre>
+                                    </div>
+                                    
+                                    <div class="docs-card">
+                                        <h5>🔥 Firejail (Linux Sandbox)</h5>
+                                        <div class="sandbox-when">
+                                            <strong>When to use:</strong>
+                                            <ul>
+                                                <li>You need something lighter than Docker</li>
+                                                <li>Server needs some system access</li>
+                                                <li>You're on Linux and want quick isolation</li>
+                                            </ul>
+                                        </div>
+                                        <div class="sandbox-risk">
+                                            <strong>Risk Level:</strong> <span class="risk-medium">Medium</span> - Good isolation, some access allowed
+                                        </div>
+                                        <div class="sandbox-requires">
+                                            <strong>Requires:</strong> Linux OS, Firejail installed
+                                        </div>
+                                        <pre><code>"sandbox": {
+  "strategy": {
+    "firejail": {
+      "profile": "default",
+      "net": true
+    }
+  }
+}</code></pre>
+                                    </div>
+                                    
+                                    <div class="docs-card">
+                                        <h5>🫧 Bubblewrap (User Namespaces)</h5>
+                                        <div class="sandbox-when">
+                                            <strong>When to use:</strong>
+                                            <ul>
+                                                <li>You need lightweight isolation</li>
+                                                <li>Server needs network but not file access</li>
+                                                <li>Good middle ground between None and Docker</li>
+                                            </ul>
+                                        </div>
+                                        <div class="sandbox-risk">
+                                            <strong>Risk Level:</strong> <span class="risk-medium">Medium</span> - User-level isolation
+                                        </div>
+                                        <div class="sandbox-requires">
+                                            <strong>Requires:</strong> Linux OS, Bubblewrap installed
+                                        </div>
+                                        <pre><code>"sandbox": {
+  "strategy": {
+    "bubblewrap": {
+      "share_net": true,
+      "ro_bind": ["/usr", "/etc"]
+    }
+  }
+}</code></pre>
+                                    </div>
+                                </div>
+                                
+                                <h4>Quick Decision Guide</h4>
+                                <div class="docs-info">
+                                    <p><strong>Not sure which to choose? Here's a simple guide:</strong></p>
+                                    <ul>
+                                        <li><strong>Just starting out?</strong> → Use "None" for now</li>
+                                        <li><strong>Running servers from npm/GitHub?</strong> → Use Docker or Podman</li>
+                                        <li><strong>Need file system access?</strong> → Use Firejail or None</li>
+                                        <li><strong>Maximum security needed?</strong> → Always use Docker or Podman</li>
+                                        <li><strong>On Windows/Mac?</strong> → Docker is your best option</li>
+                                        <li><strong>On Linux?</strong> → You can use any option</li>
+                                    </ul>
+                                </div>
+                            </section>
+                            
+                            <!-- Examples -->
+                            <section id="docs-examples" class="docs-section">
+                                <h3>Configuration Examples</h3>
+                                
+                                <h4>🌟 Beginner-Friendly Examples</h4>
+                                
+                                <div class="example-card">
+                                    <h5>Example 1: Basic File System Server (No Sandbox)</h5>
+                                    <p class="example-desc">This server can read and write files on your computer. Since it needs full access, we don't use a sandbox.</p>
+                                    <pre><code>{
+  "id": "my-files",
+  "name": "File System Access",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/myuser/documents"],
+  "sandbox": {
+    "strategy": "none"  // No sandbox because it needs file access
+  }
+}</code></pre>
+                                    <div class="example-note">
+                                        <strong>💡 Why no sandbox?</strong> This server needs to read your actual files, so it can't be isolated.
+                                    </div>
+                                </div>
+                                
+                                <div class="example-card">
+                                    <h5>Example 2: Web Search Server (Docker Sandbox)</h5>
+                                    <p class="example-desc">This server searches the web. It doesn't need access to your files, so we can safely isolate it.</p>
+                                    <pre><code>{
+  "id": "web-search",
+  "name": "Brave Search",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+  "env": {
+    "BRAVE_API_KEY": "${BRAVE_API_KEY}"  // Uses your API key from environment
+  },
+  "sandbox": {
+    "strategy": {
+      "docker": {
+        "image": "node:18-alpine"  // Small, secure container
+      }
+    }
+  }
+}</code></pre>
+                                    <div class="example-note">
+                                        <strong>💡 Why Docker?</strong> This server only needs internet access, not your files. Docker keeps it isolated and secure.
+                                    </div>
+                                </div>
+                                
+                                <h4>📚 Advanced Examples</h4>
+                                
+                                <div class="example-card">
+                                    <h5>Example 3: JauMemory Server (Local Setup)</h5>
+                                    <p class="example-desc">Running JauMemory from a local installation with the gRPC backend.</p>
+                                    <pre><code>{
+  "id": "jaumemory",
+  "name": "JauMemory - Persistent Memory",
+  "command": "node",
+  "args": ["/path/to/JauMemory/mcp-server/dist/index.js"],
+  "env": {
+    "GRPC_SERVER_ADDRESS": "localhost:50051",
+    "DEFAULT_USER_ID": "$USER",
+    "LOG_LEVEL": "info"
+  },
+  "sandbox": {
+    "strategy": "none",
+    "env_passthrough": ["USER", "HOME", "PATH"]
+  }
+}</code></pre>
+                                    <div class="example-note">
+                                        <strong>💡 Note:</strong> Replace /path/to/JauMemory with your actual path. The $USER variable will use your system username.
+                                    </div>
+                                </div>
+                                
+                                <div class="example-card">
+                                    <h5>Example 4: JauMemory Server (NPM Package)</h5>
+                                    <p class="example-desc">If JauMemory is published as an npm package, use this simpler config:</p>
+                                    <pre><code>{
+  "id": "jaumemory",
+  "name": "JauMemory - Persistent Memory",
+  "command": "npx",
+  "args": ["-y", "@jaumemory/mcp-server"],
+  "env": {
+    "DEFAULT_USER_ID": "$USER"
+  },
+  "sandbox": {
+    "strategy": "none"
+  }
+}</code></pre>
+                                </div>
+                                
+                                <h4>Example 5: Python Server with Docker Isolation</h4>
+                                <pre><code>{
+  "id": "python-analysis",
+  "name": "Python Data Analysis",
+  "command": "python",
+  "args": ["/app/mcp_server.py"],
+  "env": {
+    "PYTHONPATH": "/app"
+  },
+  "requires_auth": true,
+  "allowed_users": ["data-team", "analysts"],
+  "sandbox": {
+    "strategy": {
+      "docker": {
+        "image": "python:3.11-slim",
+        "mounts": [
+          "/data:/data:ro",
+          "/app:/app:ro"
+        ]
+      }
+    },
+    "env_passthrough": ["API_KEY"]
+  }
+}</code></pre>
+                                
+                                <h4>Example 6: GitHub Server with Authentication</h4>
+                                <pre><code>{
+  "id": "github",
+  "name": "GitHub Integration",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-github"],
+  "env": {
+    "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+  },
+  "requires_auth": true,
+  "allowed_users": ["developers"],
+  "sandbox": {
+    "strategy": {
+      "firejail": {
+        "net": true,
+        "private_dev": true
+      }
+    }
+  }
+}</code></pre>
+                                
+                                <h4>Example 7: Multi-Server Configuration</h4>
+                                <pre><code>{
+  "servers": [
+    {
+      "id": "filesystem",
+      "name": "File System",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/projects"],
+      "sandbox": { "strategy": "none" }
+    },
+    {
+      "id": "postgres",
+      "name": "PostgreSQL",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "DATABASE_URL": "postgresql://user:pass@localhost/db"
+      },
+      "requires_auth": true,
+      "sandbox": {
+        "strategy": {
+          "bubblewrap": {
+            "share_net": true
+          }
+        }
+      }
+    },
+    {
+      "id": "brave-search",
+      "name": "Brave Search",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+      },
+      "sandbox": { "strategy": "none" }
+    }
+  ]
+}</code></pre>
+                            </section>
+                            
+                            <!-- Security -->
+                            <section id="docs-security" class="docs-section">
+                                <h3>Security Best Practices</h3>
+                                
+                                <h4>Authentication Setup</h4>
+                                
+                                <div class="docs-info">
+                                    <p>JauAuth provides multiple authentication methods for different use cases:</p>
+                                </div>
+                                
+                                <h5>🔐 Authentication Methods</h5>
+                                
+                                <div class="auth-method-card">
+                                    <h6>1. Magic Link (Recommended for Web)</h6>
+                                    <p>Users receive a secure login link via email - no passwords needed!</p>
+                                    <ol>
+                                        <li>User enters email on login page</li>
+                                        <li>System sends magic link (expires in 15 minutes)</li>
+                                        <li>User clicks link to login automatically</li>
+                                        <li>Session created with 30-day expiration</li>
+                                    </ol>
+                                    <pre><code># Enable in settings:
+enable_magic_links = true</code></pre>
+                                </div>
+                                
+                                <div class="auth-method-card">
+                                    <h6>2. API Tokens (For CLI/Automation)</h6>
+                                    <p>Generate long-lived tokens for scripts and CLI access:</p>
+                                    <ol>
+                                        <li>Login to web dashboard</li>
+                                        <li>Go to Settings → Generate API Token</li>
+                                        <li>Set name, expiration, and permissions</li>
+                                        <li>Copy token (won't be shown again!)</li>
+                                    </ol>
+                                    <pre><code># Use token in CLI:
+export JAUAUTH_TOKEN="jau_tok_abc123..."
+jauauth router
+
+# Or in config:
+# ~/.jauauth/config.toml
+[auth]
+token = "jau_tok_abc123..."</code></pre>
+                                </div>
+                                
+                                <div class="auth-method-card">
+                                    <h6>3. Browser Sessions</h6>
+                                    <p>Automatic session management for web users:</p>
+                                    <ul>
+                                        <li>Sessions stored in secure HTTP-only cookies</li>
+                                        <li>Automatic renewal before expiration</li>
+                                        <li>Device fingerprinting for security</li>
+                                        <li>View/revoke sessions in Settings</li>
+                                    </ul>
+                                </div>
+                                
+                                <h5>🛡️ Security Features</h5>
+                                <div class="docs-info">
+                                    <ul>
+                                        <li><strong>No Passwords</strong>: Magic links eliminate password vulnerabilities</li>
+                                        <li><strong>Token Scopes</strong>: Limit what each token can access</li>
+                                        <li><strong>Device Trust</strong>: New devices require approval</li>
+                                        <li><strong>Session Management</strong>: See all active sessions, revoke any time</li>
+                                        <li><strong>Automatic Expiration</strong>: Tokens and sessions expire automatically</li>
+                                    </ul>
+                                </div>
+                                
+                                <h5>🚀 Quick Start Authentication</h5>
+                                <pre><code># 1. Run JauAuth with auth enabled
+jauauth combined --enable-auth
+
+# 2. Visit http://localhost:8080
+# 3. Click "Login" and enter your email
+# 4. Check email for magic link
+# 5. Click link to access dashboard
+
+# For CLI access:
+# 1. Generate token in dashboard
+# 2. Export token:
+export JAUAUTH_TOKEN="your-token"
+# 3. Run CLI commands normally</code></pre>
+                                
+                                <h4>Sandboxing Guidelines</h4>
+                                <table class="docs-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Server Type</th>
+                                            <th>Recommended Strategy</th>
+                                            <th>Reason</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Local file access</td>
+                                            <td>Firejail or None</td>
+                                            <td>Needs host filesystem access</td>
+                                        </tr>
+                                        <tr>
+                                            <td>External APIs</td>
+                                            <td>Docker or Podman</td>
+                                            <td>Full isolation recommended</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Database servers</td>
+                                            <td>Bubblewrap</td>
+                                            <td>Network access with user isolation</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Untrusted code</td>
+                                            <td>Docker with limits</td>
+                                            <td>Maximum isolation required</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                
+                                <h4>Environment Variables</h4>
+                                <div class="docs-warning">
+                                    <strong>⚠️ Security Warning</strong>
+                                    <p>Never hardcode sensitive values like API keys in your configuration. Use environment variables or secure secret management:</p>
+                                    <pre><code># Good: Reference environment variable
+"env": {
+  "API_KEY": "${API_KEY}"
+}
+
+# Bad: Hardcoded secret
+"env": {
+  "API_KEY": "sk-1234567890abcdef"
+}</code></pre>
+                                </div>
+                            </section>
+                            
+                            <!-- Troubleshooting -->
+                            <section id="docs-troubleshooting" class="docs-section">
+                                <h3>Troubleshooting</h3>
+                                
+                                <h4>Common Configuration Issues</h4>
+                                
+                                <div class="docs-warning">
+                                    <strong>⚠️ Configuration Pitfalls</strong>
+                                    <p>These are the most common mistakes when configuring MCP servers:</p>
+                                </div>
+                                
+                                <div class="docs-accordion">
+                                    <div class="accordion-item">
+                                        <h5>❌ Extra quotes in paths</h5>
+                                        <div class="accordion-content">
+                                            <p><strong>Problem:</strong> Adding quotes inside JSON strings</p>
+                                            <pre><code>// ❌ WRONG - Extra quotes
+"args": ["\"/path/to/file.js\""]
+
+// ✅ CORRECT - No extra quotes needed
+"args": ["/path/to/file.js"]</code></pre>
+                                            <p><strong>Why it fails:</strong> JSON already handles escaping. Extra quotes become part of the actual path.</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="accordion-item">
+                                        <h5>❌ Environment variables rejected</h5>
+                                        <div class="accordion-content">
+                                            <p><strong>Problem:</strong> Using $USER, $HOME in config</p>
+                                            <pre><code>// If you get "potentially dangerous characters" error:
+"env": {
+  "DEFAULT_USER_ID": "$USER"  // This is actually OK!
+}
+
+// Make sure to include env_passthrough:
+"sandbox": {
+  "strategy": "none",
+  "env_passthrough": ["USER", "HOME", "PATH"]
+}</code></pre>
+                                            <p><strong>Solution:</strong> Update to latest JauAuth version which allows env vars.</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="accordion-item">
+                                        <h5>❌ Form erasing environment variables</h5>
+                                        <div class="accordion-content">
+                                            <p><strong>Problem:</strong> Switching between form and JSON view loses env settings</p>
+                                            <p><strong>Solution:</strong> Always use JSON view when working with env variables. The form doesn't have fields for all options.</p>
+                                            <pre><code>// These fields are JSON-only:
+"env": {
+  "API_KEY": "$MY_API_KEY",
+  "DEBUG": "true"
+}</code></pre>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="accordion-item">
+                                        <h5>❌ Wrong command format from Claude MCP</h5>
+                                        <div class="accordion-content">
+                                            <p><strong>Problem:</strong> Converting Claude MCP commands to JauAuth config</p>
+                                            <pre><code># Claude MCP command:
+claude mcp add server -- node "/path/to/server.js" --arg1 value1
+
+# Convert to JauAuth config:
+{
+  "command": "node",
+  "args": ["/path/to/server.js", "--arg1", "value1"]
+}</code></pre>
+                                            <p><strong>Note:</strong> Split the command and args properly. Don't include quotes unless the path has spaces.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <h4>Converting Claude MCP Commands</h4>
+                                <div class="docs-info">
+                                    <p>Here's how to convert Claude MCP add commands to JauAuth configurations:</p>
+                                </div>
+                                
+                                <table class="docs-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Claude MCP Command</th>
+                                            <th>JauAuth Configuration</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><code>claude mcp add jaumemory -- npx -y @jaumemory/server</code></td>
+                                            <td><pre>{
+  "command": "npx",
+  "args": ["-y", "@jaumemory/server"]
+}</pre></td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>claude mcp add myserver -- node "/my path/server.js"</code></td>
+                                            <td><pre>{
+  "command": "node",
+  "args": ["/my path/server.js"]
+}</pre></td>
+                                        </tr>
+                                        <tr>
+                                            <td><code>claude mcp add python -- python3 -m mcp_server</code></td>
+                                            <td><pre>{
+  "command": "python3",
+  "args": ["-m", "mcp_server"]
+}</pre></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                
+                                <h4>General Troubleshooting</h4>
+                                
+                                <div class="docs-accordion">
+                                    <div class="accordion-item">
+                                        <h5>🔧 TypeScript MCP Server Issues</h5>
+                                        <div class="accordion-content">
+                                            <p><strong>Problem:</strong> TypeScript server can't connect to Rust backend</p>
+                                            <ul>
+                                                <li>Ensure Rust backend is running: <code>cargo run -- combined</code></li>
+                                                <li>Check backend URL: Default is <code>http://localhost:7447</code></li>
+                                                <li>Verify MCP API is available: <code>curl http://localhost:7447/api/mcp/status</code></li>
+                                                <li>Check TypeScript logs: <code>tail -f /tmp/jauauth-mcp.log</code></li>
+                                            </ul>
+                                            <pre><code># Set custom backend URL if needed
+export RUST_BACKEND_URL=http://localhost:8080</code></pre>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="accordion-item">
+                                        <h5>Missing configuration fields</h5>
+                                        <div class="accordion-content">
+                                            <p><strong>Error:</strong> "missing field `timeout_ms`" or "missing field `cache_tools`"</p>
+                                            <p><strong>Solution:</strong> Add required fields to router-config.json:</p>
+                                            <pre><code>{
+  "timeout_ms": 30000,
+  "cache_tools": true,
+  "servers": [...]
+}</code></pre>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="accordion-item">
+                                        <h5>Server fails to start</h5>
+                                        <div class="accordion-content">
+                                            <p>Check the following:</p>
+                                            <ul>
+                                                <li>Verify the command exists in PATH</li>
+                                                <li>For JauMemory: Ensure gRPC backend is running on port 50051</li>
+                                                <li>Check dashboard for server status</li>
+                                                <li>Ensure all required environment variables are set</li>
+                                                <li>Verify sandbox tool is installed (Docker, Firejail, etc.)</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="accordion-item">
+                                        <h5>Tools not appearing in Claude</h5>
+                                        <div class="accordion-content">
+                                            <p>Possible causes:</p>
+                                            <ul>
+                                                <li>TypeScript MCP server not running</li>
+                                                <li>Rust backend not running - must run FIRST</li>
+                                                <li>Server not healthy - check dashboard at http://localhost:7447</li>
+                                                <li>MCP handshake failed - check TypeScript logs</li>
+                                                <li>Restart Claude Desktop after configuration changes</li>
+                                            </ul>
+                                            <pre><code># Check if backend is responding
+curl http://localhost:7447/api/mcp/tools</code></pre>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="accordion-item">
+                                        <h5>Permission denied errors</h5>
+                                        <div class="accordion-content">
+                                            <p>Solutions:</p>
+                                            <ul>
+                                                <li>Check file permissions for mounted directories</li>
+                                                <li>Verify sandbox user has necessary access</li>
+                                                <li>Use <code>:ro</code> (read-only) mounts when possible</li>
+                                                <li>Consider using <code>env_passthrough</code> for HOME/USER</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <h4>Debug Mode</h4>
+                                <pre><code># TypeScript MCP Server debugging
+export LOG_LEVEL=debug
+tail -f /tmp/jauauth-mcp.log
+
+# Rust Backend debugging
+export JAUAUTH_LOG_LEVEL=debug
+export RUST_LOG=jau_auth=debug,rust_mcp_sdk=info
+
+# Run with verbose output
+cargo run -- combined
+
+# Test MCP API endpoints
+curl http://localhost:7447/api/mcp/status
+curl http://localhost:7447/api/mcp/tools
+curl http://localhost:7447/api/mcp/servers
+
+# Check TypeScript-Rust communication
+node mcp-server/test-integration.js</code></pre>
+                                
+                                <h4>Getting Help</h4>
+                                <ul>
+                                    <li><strong>GitHub Issues</strong>: <a href="https://github.com/jauauth/jauauth/issues">Report bugs or request features</a></li>
+                                    <li><strong>Discord</strong>: Join our community for real-time help</li>
+                                    <li><strong>Documentation</strong>: Full API reference at <a href="https://docs.jauauth.dev">docs.jauauth.dev</a></li>
+                                </ul>
+                            </section>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Settings Section -->
+                <section id="settings" class="section">
+                    <h2>Settings</h2>
+                    
+                    <!-- User Sessions -->
+                    <div class="settings-section">
+                        <h3>Active Sessions</h3>
+                        <p>Manage your active sessions and API tokens</p>
+                        
+                        <div id="sessionsList" class="sessions-list">
+                            <div class="loading">Loading sessions...</div>
+                        </div>
+                        
+                        <div class="session-actions">
+                            <button class="btn btn-primary" onclick="app.generateAPIToken()">
+                                🔑 Generate API Token
+                            </button>
+                            <button class="btn btn-secondary" onclick="app.revokeAllSessions()">
+                                🚫 Revoke All Sessions
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Authentication Settings -->
+                    <div class="settings-section">
+                        <h3>Authentication Settings</h3>
+                        <div class="settings-form" id="settingsForm">
+                            <div class="loading">Loading settings...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- User Profile -->
+                    <div class="settings-section">
+                        <h3>User Profile</h3>
+                        <div id="userProfile">
+                            <div class="loading">Loading profile...</div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Add/Edit Server Modal -->
+        <div id="serverModal" class="modal">
+            <div class="modal-content modal-wide">
+                <div class="modal-header">
+                    <h3 id="modalTitle">Add Server</h3>
+                    <div class="view-toggle">
+                        <button class="toggle-btn active" onclick="app.setEditorView('split')">Split View</button>
+                        <button class="toggle-btn" onclick="app.setEditorView('form')">Form Only</button>
+                        <button class="toggle-btn" onclick="app.setEditorView('json')">JSON Only</button>
+                    </div>
+                    <button class="modal-close" onclick="app.closeModal()">&times;</button>
+                </div>
+                
+                <div class="editor-container" id="editorContainer">
+                    <!-- Form View -->
+                    <div class="editor-pane form-pane" id="formPane">
+                        <form id="serverForm" onsubmit="app.saveServer(event)">
+                            <div class="form-group">
+                                <label for="serverId">Server ID</label>
+                                <input type="text" id="serverId" name="id" required 
+                                       pattern="[a-zA-Z0-9-_]+" 
+                                       placeholder="my-server"
+                                       oninput="app.syncFormToJson()">
+                                <small>Unique identifier for this server</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="serverName">Display Name</label>
+                                <input type="text" id="serverName" name="name" required 
+                                       placeholder="My MCP Server"
+                                       oninput="app.syncFormToJson()">
+                                <small>Human-readable name</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="serverCommand">Command</label>
+                                <select id="serverCommand" name="command" required
+                                        onchange="app.syncFormToJson()">
+                                    <option value="">Select a command...</option>
+                                    <option value="npx">npx</option>
+                                    <option value="node">node</option>
+                                    <option value="python">python</option>
+                                    <option value="python3">python3</option>
+                                    <option value="cargo">cargo</option>
+                                    <option value="go">go</option>
+                                </select>
+                                <small>The executable to run</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="serverArgs">Arguments</label>
+                                <input type="text" id="serverArgs" name="args" 
+                                       placeholder="@modelcontextprotocol/server-filesystem /path/to/data"
+                                       oninput="app.syncFormToJson()">
+                                <small>Space-separated command arguments</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="sandboxStrategy">Sandbox Strategy</label>
+                                <select id="sandboxStrategy" name="sandboxStrategy" required
+                                        onchange="app.syncFormToJson()">
+                                    <option value="none">None (Development Only)</option>
+                                    <option value="docker">Docker (High Security)</option>
+                                    <option value="podman">Podman (Rootless Containers)</option>
+                                    <option value="firejail">Firejail (Lightweight)</option>
+                                    <option value="bubblewrap">Bubblewrap (User Namespaces)</option>
+                                </select>
+                                <small>Security isolation method</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="requiresAuth" name="requiresAuth"
+                                           onchange="app.syncFormToJson()">
+                                    Require Authentication
+                                </label>
+                                <small>Users must be authenticated to use this server</small>
+                            </div>
+                            
+                            <div class="form-group" id="allowedUsersGroup" style="display: none;">
+                                <label for="allowedUsers">Allowed Users</label>
+                                <input type="text" id="allowedUsers" name="allowedUsers"
+                                       placeholder="admin, developer, analyst"
+                                       oninput="app.syncFormToJson()">
+                                <small>Comma-separated list of allowed users/roles</small>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <!-- JSON Editor -->
+                    <div class="editor-pane json-pane" id="jsonPane">
+                        <div class="json-header">
+                            <h4>JSON Configuration</h4>
+                            <button class="btn btn-sm" onclick="app.formatJson()">Format</button>
+                        </div>
+                        <textarea id="jsonEditor" class="json-editor" 
+                                  placeholder="Paste JSON configuration here..."
+                                  oninput="app.syncJsonToForm()"></textarea>
+                        <div id="jsonError" class="json-error"></div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <div class="footer-info">
+                        <span id="validationStatus" class="validation-status"></span>
+                    </div>
+                    <div class="footer-actions">
+                        <label class="save-config-toggle">
+                            <input type="checkbox" id="persistToConfig" checked>
+                            <span>💾 Save to config file</span>
+                        </label>
+                        <button type="button" class="btn btn-secondary" onclick="app.closeModal()">
+                            Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="app.saveServer(event)">
+                            Save Server
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tool Test Modal -->
+        <div id="toolModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Test Tool</h3>
+                    <button class="modal-close" onclick="app.closeToolModal()">&times;</button>
+                </div>
+                <div id="toolTestContent">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- API Token Modal -->
+        <div id="apiTokenModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Generate API Token</h3>
+                    <button class="modal-close" onclick="app.closeTokenModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="tokenForm" onsubmit="app.createAPIToken(event)">
+                        <div class="form-group">
+                            <label for="tokenName">Token Name</label>
+                            <input type="text" id="tokenName" name="name" required 
+                                   placeholder="My CLI Token">
+                            <small>Give this token a memorable name</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="tokenExpiry">Expiration</label>
+                            <select id="tokenExpiry" name="expiry" required>
+                                <option value="7">7 days</option>
+                                <option value="30" selected>30 days</option>
+                                <option value="90">90 days</option>
+                                <option value="365">1 year</option>
+                                <option value="0">Never (not recommended)</option>
+                            </select>
+                            <small>Token will expire after this period</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="tokenScopes">Permissions</label>
+                            <div class="token-scopes">
+                                <label>
+                                    <input type="checkbox" name="scopes" value="servers:read" checked>
+                                    Read server configurations
+                                </label>
+                                <label>
+                                    <input type="checkbox" name="scopes" value="servers:write">
+                                    Modify server configurations
+                                </label>
+                                <label>
+                                    <input type="checkbox" name="scopes" value="tools:execute" checked>
+                                    Execute MCP tools
+                                </label>
+                                <label>
+                                    <input type="checkbox" name="scopes" value="admin">
+                                    Full admin access
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            Generate Token
+                        </button>
+                    </form>
+                    
+                    <div id="tokenDisplay" style="display: none;">
+                        <div class="token-generated">
+                            <h4>🎉 Token Generated Successfully!</h4>
+                            <p>Copy this token now - it won't be shown again:</p>
+                            
+                            <div class="token-value" id="generatedToken">
+                                <!-- Token will appear here -->
+                            </div>
+                            
+                            <button class="btn btn-sm" onclick="app.copyToken()">
+                                📋 Copy Token
+                            </button>
+                            
+                            <div class="token-instructions">
+                                <h5>How to use this token:</h5>
+                                <p><strong>Option 1: Environment Variable (Recommended)</strong></p>
+                                <pre>export JAUAUTH_TOKEN="your-token-here"</pre>
+                                
+                                <p><strong>Option 2: Config File</strong></p>
+                                <pre># ~/.jauauth/config.toml
+[auth]
+token = "your-token-here"</pre>
+                                
+                                <p><strong>Option 3: Command Line</strong></p>
+                                <pre>jauauth --token "your-token-here" router</pre>
+                                
+                                <div class="security-note">
+                                    <strong>🔒 Security Tips:</strong>
+                                    <ul>
+                                        <li>Never commit tokens to version control</li>
+                                        <li>Use environment variables or secure vaults</li>
+                                        <li>Rotate tokens regularly</li>
+                                        <li>Revoke unused tokens</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/app.js"></script>
+</body>
+</html>

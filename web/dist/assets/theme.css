@@ -1,0 +1,34 @@
+:root {
+  /* Light Mode Base Colors */
+  --light-100: #F3F2F2;
+  --light-300: #CDCBCC;
+  --light-500: #F8F7F7;
+  --light-700: #4F4A4C;
+  --light-900: #272526;
+
+  /* Dark Mode Base Colors */
+  --dark-100: #F3F2F2;
+  --dark-300: #CDCBCC;
+  --dark-500: #151414;
+  --dark-700: #4F4A4C;
+  --dark-900: #272526;
+
+  /* Accent Colors */
+  --accent-100: #F4F0F2;
+  --accent-300: #D3C5CB;
+  --accent-500: #926D7D;
+  --accent-700: #58414B;
+  --accent-900: #2C2125;
+
+  /* Creative Palette Colors */
+  --creative-1: #591AB7;
+  --creative-2: #672FA9;
+  --creative-3: #76449A;
+  --creative-4: #84588C;
+  --creative-5: #926D7D;
+  --creative-6: #A0826F;
+  --creative-7: #AF9760;
+  --creative-8: #BDAB52;
+  --creative-9: #CBC043;
+
+}

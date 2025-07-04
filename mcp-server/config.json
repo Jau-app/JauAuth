@@ -1,0 +1,11 @@
+{
+  "backend": {
+    "url": "http://localhost:7447/api/mcp",
+    "timeout": 30000
+  },
+  "server": {
+    "name": "JauAuth Router",
+    "version": "1.0.0",
+    "description": "TypeScript MCP frontend for JauAuth router"
+  }
+}

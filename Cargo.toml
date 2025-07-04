@@ -1,0 +1,134 @@
+[package]
+name = "jau-auth"
+version = "0.1.0"
+edition = "2021"
+authors = ["Jau Team"]
+description = "Universal authentication system for MCP (Model Context Protocol) servers"
+license = "MIT"
+repository = "https://github.com/jau-team/jau-auth"
+rust-version = "1.70"
+default-run = "jau-auth"
+
+[dependencies]
+# Web framework (updated for hyper 1.0 ecosystem)
+axum = { version = "0.8.1", features = ["ws"] }
+axum-extra = { version = "0.10.0", features = ["typed-header"] }
+tower = "0.5.1"
+tower-http = { version = "0.6.1", features = ["cors", "fs", "trace", "compression-gzip", "compression-br", "limit", "set-header"] }
+hyper = "1.0"
+
+# MCP SDK for routing (temporarily disabled while we use simple_router)
+# rust-mcp-sdk = { version = "0.4", features = ["server", "client", "macros"] }
+# rust-mcp-transport = "0.3"
+# rust-mcp-schema = "0.6"
+
+# Authentication
+argon2 = "0.5"
+jsonwebtoken = "9.2"
+webauthn-rs = "0.5"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Database (CRITICAL: Updated to fix SQL injection vulnerability)
+sqlx = { version = "0.8.1", features = ["runtime-tokio-rustls", "sqlite", "migrate", "chrono"] }
+
+# Async runtime
+tokio = { version = "1.46", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# MCP Protocol (updated to latest)
+prost = "0.12"
+tonic = "0.12.3"
+
+# Security
+rand = "0.8"
+sha2 = "0.10"
+base64 = "0.21"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Configuration
+config = "0.13"
+dotenvy = "0.15.7"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+thiserror = "1.0"  # Keeping at 1.0 for now, will migrate to 2.0 later
+anyhow = "1.0"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+colored = "2.1"
+
+# Rate limiting
+governor = "0.6"
+
+# Device fingerprinting
+woothee = "0.13"
+
+[dev-dependencies]
+reqwest = { version = "0.12.8", features = ["json"] }
+pretty_assertions = "1.4.0"
+criterion = { version = "0.5", features = ["html_reports"] }
+tokio-test = "0.4"
+
+[build-dependencies]
+tonic-build = "0.12.3"
+
+[[bin]]
+name = "jau-auth"
+path = "src/main.rs"
+
+[[bin]]
+name = "sandbox-check"
+path = "src/bin/sandbox-check.rs"
+
+[[bench]]
+name = "bench_auth"
+harness = false
+path = "tests/performance/bench_auth.rs"
+
+[lib]
+name = "jau_auth"
+path = "src/lib.rs"
+
+[features]
+default = ["web-portal"]
+web-portal = []
+standalone-proxy = []
+
+# Optimization profiles
+[profile.dev]
+# Faster compilation in development
+opt-level = 0
+debug = true
+incremental = true
+
+[profile.release]
+# Maximum performance for production
+opt-level = 3
+lto = "thin"  # Link-time optimization (use "fat" for max performance)
+codegen-units = 1  # Better optimization but slower compile
+strip = true  # Strip symbols for smaller binary
+panic = "abort"  # Smaller binary, no unwinding
+
+[profile.release-fast]
+# Faster compilation, good performance
+inherits = "release"
+lto = false
+codegen-units = 16
+
+# Custom profile for quick builds
+[profile.quick]
+inherits = "release"
+opt-level = 2
+lto = false
+codegen-units = 16
+incremental = true

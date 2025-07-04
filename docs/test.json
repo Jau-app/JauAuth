@@ -1,0 +1,23 @@
+{
+    "id": "jaumemory",
+    "name": "JauMemory",
+    "command": "node",
+    "args": [
+        "/mnt/r/devR/AI/Jau/JauMemory/mcp-server/dist/index.js"
+    ],
+    "env": {
+        "GRPC_SERVER_ADDRESS": "localhost:50051",
+        "DEFAULT_USER_ID": "$USER",
+        "LOG_LEVEL": "info"
+    },
+    "requires_auth": false,
+    "allowed_users": [],
+    "sandbox": {
+        "strategy": "none",
+        "env_passthrough": [
+            "HOME",
+            "USER",
+            "PATH"
+        ]
+    }
+}
