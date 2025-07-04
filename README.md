@@ -81,7 +81,7 @@ Managing multiple MCP servers can be complex and insecure. JauAuth solves this b
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/Jau-app/Jau-Auth.git
+git clone https://github.com/Jau-app/JauAuth.git
 cd Jau-Auth
 ```
 
@@ -130,7 +130,7 @@ cargo build --release
 
 6. **Add to Claude Desktop:**
 ```bash
-claude mcp add jauauth /path/to/Jau-Auth/mcp-launcher.sh
+claude mcp add jauauth /path/to/JauAuth/mcp-launcher.sh
 ```
 
 ## 🏗️ Architecture
@@ -337,13 +337,13 @@ See the [LICENSE](LICENSE) file for full details.
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Jau-app/Jau-Auth&type=Date)](https://star-history.com/#Jau-app/Jau-Auth&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Jau-app/JauAuth&type=Date)](https://star-history.com/#Jau-app/JauAuth&Date)
 
 ## 📞 Support
 
 - 📧 Email: support@jau.app
 - 💬 Discord: [Join our community](https://discord.gg/jau-app)
-- 🐛 Issues: [GitHub Issues](https://github.com/Jau-app/Jau-Auth/issues)
+- 🐛 Issues: [GitHub Issues](https://github.com/Jau-app/JauAuth/issues)
 - 📖 Docs: [Documentation](https://docs.jau.app/jauauth)
 
 ---
