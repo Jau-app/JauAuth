@@ -6,6 +6,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue)](https://www.typescriptlang.org)
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-❤-ea4aaa)](https://github.com/sponsors/Jau-app)
 
+> ⚠️ **SECURITY DISCLAIMER**: While JauAuth implements multiple security layers including sandboxing, authentication, and validation, no security solution is 100% foolproof. This software is provided "as is" without warranty of any kind. Use at your own risk. The authors and contributors are not responsible for any security breaches, data loss, or damages arising from the use of this software. Always follow security best practices and regularly update your dependencies.
+
 ## The Problem: MCP Server Sprawl and Security Nightmares
 
 When we started building AI tools with Claude Desktop, we quickly ran into a frustrating problem. Every new capability meant connecting another MCP server - one for file access, another for memory, one more for notifications. Soon, our Claude configuration was a tangled mess of server connections, each running with full system access. 
