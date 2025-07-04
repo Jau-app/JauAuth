@@ -311,7 +311,20 @@ JauAuth takes security seriously. If you discover a security vulnerability, plea
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Business Source License 1.1 with Additional Use Grants.
+
+**Free to use for:**
+- 🏠 Personal, non-commercial use
+- 🏢 Companies with fewer than 5 employees  
+- 🎓 Educational and research purposes
+
+**Commercial License Required for:**
+- Companies with 5 or more employees
+- Commercial production use beyond the grants above
+
+For commercial licensing, please contact: license@jau.app
+
+See the [LICENSE](LICENSE) file for full details.
 
 ## 🙏 Acknowledgments
 
