@@ -247,6 +247,15 @@ cargo test
 # Integration tests
 node scripts/test-full.js
 
+# Test individual tools with timeout support
+node scripts/test-tool.js router_status
+node scripts/test-tool.js jau-tg_send_alert '{"message":"Test"}'
+node scripts/test-tool.js jau-tg_wait_for_approval '{"content":"Approve?"}' --timeout=300000
+node scripts/test-tool.js any_tool '{"args":"here","__timeout":"*"}'
+
+# Test timeout functionality
+node scripts/test-timeout.js
+
 # Check available sandboxing
 cargo run --bin sandbox-check
 ```
@@ -270,9 +279,11 @@ sudo systemctl start jauauth
 
 ## 📚 Documentation
 
+- [Changelog](CHANGELOG.md) - Latest updates and version history
 - [Architecture Overview](docs/ARCHITECTURE.md)
 - [Security & Sandboxing](docs/SANDBOX-SECURITY.md)
 - [Dashboard Guide](docs/DASHBOARD-README.md)
+- [Timeout Configuration](docs/TIMEOUT-CONFIGURATION.md)
 - [Contributing Guide](CONTRIBUTING.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 

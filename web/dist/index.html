@@ -93,6 +93,7 @@
                                 <li><a href="#docs-mcp-setup" class="docs-link">MCP Setup</a></li>
                                 <li><a href="#docs-server-config" class="docs-link">Server Configuration</a></li>
                                 <li><a href="#docs-examples" class="docs-link">Examples</a></li>
+                                <li><a href="#docs-timeout" class="docs-link">Timeout Configuration</a></li>
                                 <li><a href="#docs-security" class="docs-link">Security</a></li>
                                 <li><a href="#docs-troubleshooting" class="docs-link">Troubleshooting</a></li>
                             </ul>
@@ -617,6 +618,132 @@ export JAUAUTH_LOG_LEVEL=info                   # Rust log level</code></pre>
     }
   ]
 }</code></pre>
+                            </section>
+                            
+                            <!-- Timeout Configuration -->
+                            <section id="docs-timeout" class="docs-section">
+                                <h3>Timeout Configuration</h3>
+                                
+                                <div class="docs-info">
+                                    <p>JauAuth supports custom timeouts for long-running operations through a special <code>__timeout</code> parameter that can be added to any tool's arguments.</p>
+                                </div>
+                                
+                                <h4>Why Use Custom Timeouts?</h4>
+                                <p>Some operations take longer than the default 30 seconds:</p>
+                                <ul>
+                                    <li>⏰ Waiting for user approval or feedback</li>
+                                    <li>🔍 Searching large datasets</li>
+                                    <li>🌐 Calling slow external APIs</li>
+                                    <li>📊 Processing large amounts of data</li>
+                                    <li>🤖 Running complex AI operations</li>
+                                </ul>
+                                
+                                <h4>How to Use __timeout</h4>
+                                
+                                <div class="example-card">
+                                    <h5>Basic Usage</h5>
+                                    <p>Add <code>__timeout</code> to any tool's arguments:</p>
+                                    <pre><code>// Wait up to 5 minutes for approval
+wait_for_approval({
+  content: "Please approve this deployment",
+  contentType: "approval",
+  __timeout: 300000  // 5 minutes in milliseconds
+})
+
+// No timeout - wait indefinitely
+process_large_dataset({
+  data: bigData,
+  __timeout: "*"  // Special value for no timeout
+})</code></pre>
+                                </div>
+                                
+                                <h4>Timeout Values</h4>
+                                <table class="docs-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Value Type</th>
+                                            <th>Example</th>
+                                            <th>Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>Number</td>
+                                            <td><code>__timeout: 60000</code></td>
+                                            <td>Timeout in milliseconds (60 seconds)</td>
+                                        </tr>
+                                        <tr>
+                                            <td>String Number</td>
+                                            <td><code>__timeout: "60000"</code></td>
+                                            <td>Same as number, but as a string</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Asterisk</td>
+                                            <td><code>__timeout: "*"</code></td>
+                                            <td>No timeout - wait indefinitely</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Not specified</td>
+                                            <td>-</td>
+                                            <td>Default timeout (30 seconds)</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                
+                                <h4>Common Use Cases</h4>
+                                
+                                <div class="docs-cards">
+                                    <div class="docs-card">
+                                        <h5>👤 User Approval</h5>
+                                        <pre><code>wait_for_approval({
+  content: "Deploy to production?",
+  __timeout: 600000  // 10 minutes
+})</code></pre>
+                                    </div>
+                                    
+                                    <div class="docs-card">
+                                        <h5>🔍 Large Searches</h5>
+                                        <pre><code>search_database({
+  query: "complex pattern",
+  __timeout: 300000  // 5 minutes
+})</code></pre>
+                                    </div>
+                                    
+                                    <div class="docs-card">
+                                        <h5>📦 Batch Processing</h5>
+                                        <pre><code>process_batch({
+  items: thousandItems,
+  __timeout: "*"  // No timeout
+})</code></pre>
+                                    </div>
+                                </div>
+                                
+                                <h4>Testing Timeouts</h4>
+                                
+                                <div class="example-card">
+                                    <h5>Using the test-tool.js Script</h5>
+                                    <pre><code># Test with command-line timeout
+node scripts/test-tool.js jau-tg_wait_for_approval \
+  '{"content":"Test approval"}' --timeout=300000
+
+# Test with in-argument timeout
+node scripts/test-tool.js any_tool \
+  '{"args":"here","__timeout":300000}'
+
+# Test with no timeout
+node scripts/test-tool.js long_running_tool \
+  '{"data":"process","__timeout":"*"}'</code></pre>
+                                </div>
+                                
+                                <div class="docs-warning">
+                                    <h5>⚠️ Important Notes</h5>
+                                    <ul>
+                                        <li>The <code>__timeout</code> parameter is automatically removed before sending to the backend</li>
+                                        <li>Backend servers are unaware of the timeout mechanism</li>
+                                        <li>If a timeout occurs, you'll see a helpful error message suggesting to use <code>__timeout</code></li>
+                                        <li>Some backends may have their own internal timeouts that can't be overridden</li>
+                                    </ul>
+                                </div>
                             </section>
                             
                             <!-- Security -->

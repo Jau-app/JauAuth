@@ -156,9 +156,46 @@ class JauAuthMCPServer {
         // Route all other tools to the Rust backend
         // Convert first underscore back to colon for backend routing (server_id:tool_name)
         const backendToolName = name.replace('_', ':');
-        const response = await backend.post('/api/mcp/tool/call', {
+        
+        // Extract timeout parameter if provided
+        let timeout = appConfig.backend.timeout; // Default timeout
+        let cleanArgs = args;
+        
+        if (args && typeof args === 'object' && '__timeout' in args) {
+          const timeoutParam = args.__timeout;
+          
+          // Handle special case: '*' means no timeout
+          if (timeoutParam === '*') {
+            timeout = 0; // 0 means no timeout in axios
+          } else if (typeof timeoutParam === 'number' && timeoutParam > 0) {
+            timeout = timeoutParam;
+          } else if (typeof timeoutParam === 'string' && !isNaN(parseInt(timeoutParam))) {
+            timeout = parseInt(timeoutParam);
+          }
+          
+          // Remove __timeout from arguments before forwarding
+          const { __timeout, ...restArgs } = args;
+          cleanArgs = restArgs;
+          
+          logger.info(`Tool ${name} using custom timeout: ${timeout}ms`);
+        }
+        
+        // Create request-specific axios instance with custom timeout
+        const requestBackend = timeout === 0 
+          ? axios.create({
+              baseURL: appConfig.backend.url,
+              headers: { 'Content-Type': 'application/json' },
+              // No timeout
+            })
+          : axios.create({
+              baseURL: appConfig.backend.url,
+              timeout: timeout,
+              headers: { 'Content-Type': 'application/json' },
+            });
+        
+        const response = await requestBackend.post('/api/mcp/tool/call', {
           tool: backendToolName,
-          arguments: args,
+          arguments: cleanArgs,
         });
 
         return {
@@ -172,11 +209,17 @@ class JauAuthMCPServer {
       } catch (error: any) {
         logger.error('Tool call failed', { name, error: error.message });
         
+        // Provide more specific error for timeout
+        let errorMessage = error.response?.data?.error || error.message;
+        if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+          errorMessage = `Request timeout: The operation took longer than expected. Consider using __timeout parameter for long-running operations.`;
+        }
+        
         return {
           content: [
             {
               type: 'text',
-              text: `Error: ${error.response?.data?.error || error.message}`,
+              text: `Error: ${errorMessage}`,
             },
           ],
           isError: true,
@@ -219,9 +262,30 @@ class JauAuthMCPServer {
       for (const tool of tools) {
         // Replace colons with underscores to comply with Claude's naming requirements
         const safeName = tool.name.replace(/:/g, '_');
+        
+        // Enhance tool description with timeout parameter info
+        const enhancedDescription = tool.description + 
+          '\n\nNote: For long-running operations, you can add __timeout parameter (in milliseconds) to your arguments. ' +
+          'Use __timeout: "*" for no timeout, or a number like __timeout: 300000 for 5 minutes.';
+        
+        // Add __timeout to the input schema if it has properties
+        const enhancedSchema = tool.inputSchema ? {
+          ...tool.inputSchema,
+          properties: {
+            ...tool.inputSchema.properties,
+            __timeout: {
+              type: ['string', 'number'],
+              description: 'Optional timeout in milliseconds. Use "*" for no timeout, or a number like 300000 for 5 minutes. Default: 30000ms',
+              examples: ['*', 300000, '60000']
+            }
+          }
+        } : tool.inputSchema;
+        
         this.tools.set(safeName, {
           ...tool,
-          name: safeName
+          name: safeName,
+          description: enhancedDescription,
+          inputSchema: enhancedSchema
         });
       }
 
