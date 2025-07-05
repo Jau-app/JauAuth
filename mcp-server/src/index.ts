@@ -140,8 +140,30 @@ class JauAuthMCPServer {
 
     // Handle tool calls
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
-      logger.info('Calling tool', { name, args });
+      let { name, arguments: args } = request.params;
+      
+      // Log raw request to debug
+      logger.debug('Raw request params', { params: request.params });
+      
+      // Handle case where arguments might be nested or stringified
+      // MCP SDK sometimes sends { arguments: "{...}" } instead of direct object
+      if (args && typeof args === 'object' && 'arguments' in args && typeof args.arguments === 'string') {
+        try {
+          args = JSON.parse(args.arguments);
+          logger.info('Parsed nested string arguments', { name, args });
+        } catch (e) {
+          logger.error('Failed to parse nested string arguments', { name, error: e });
+        }
+      } else if (typeof args === 'string') {
+        try {
+          args = JSON.parse(args);
+          logger.info('Parsed string arguments to object', { name, args });
+        } catch (e) {
+          logger.error('Failed to parse string arguments', { name, error: e });
+        }
+      }
+      
+      logger.info('Calling tool', { name, args, argsType: typeof args });
 
       try {
         // Special handling for router management tools
@@ -160,6 +182,12 @@ class JauAuthMCPServer {
         // Extract timeout parameter if provided
         let timeout = appConfig.backend.timeout; // Default timeout
         let cleanArgs = args;
+        
+        logger.debug('Tool call details', { 
+          originalArgs: args,
+          argsType: typeof args,
+          hasTimeout: args && typeof args === 'object' && '__timeout' in args
+        });
         
         if (args && typeof args === 'object' && '__timeout' in args) {
           const timeoutParam = args.__timeout;
@@ -196,11 +224,20 @@ class JauAuthMCPServer {
         // Only pass timeout_ms if user explicitly provided __timeout
         const hasExplicitTimeout = args && typeof args === 'object' && '__timeout' in args;
         
-        const response = await requestBackend.post('/api/mcp/tool/call', {
+        // Debug logging before sending to backend
+        const requestBody = {
           tool: backendToolName,
           arguments: cleanArgs,
           timeout_ms: hasExplicitTimeout ? timeout : undefined,
+        };
+        
+        logger.debug('Sending to backend', { 
+          requestBody: JSON.stringify(requestBody),
+          cleanArgsType: typeof cleanArgs,
+          cleanArgsKeys: cleanArgs && typeof cleanArgs === 'object' ? Object.keys(cleanArgs) : 'not-object'
         });
+        
+        const response = await requestBackend.post('/api/mcp/tool/call', requestBody);
 
         return {
           content: [

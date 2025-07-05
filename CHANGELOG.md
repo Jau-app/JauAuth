@@ -38,8 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Critical: Fixed blocking issue with all MCP tool calls through JauAuth**
-  - Root cause: `send_request` was reading stdout directly while response reader task was also consuming responses
-  - Solution: `call_tool` now always uses `send_request_async` to go through proper async channels
+  - Root cause 1: `send_request` was reading stdout directly while response reader task was also consuming responses
+  - Root cause 2: MCP SDK was sending arguments as nested JSON strings `{arguments: "{...}"}` instead of direct objects
+  - Solution 1: `call_tool` now always uses `send_request_async` to go through proper async channels
+  - Solution 2: Added nested JSON string parsing in TypeScript MCP server to handle `{arguments: "..."}` structure
   - This fix enables ALL tools to work correctly, not just long-running ones
 - **Fixed blocking issue with long-running operations** like `wait_for_approval`
   - Implemented proper async response handling in Rust backend
