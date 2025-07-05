@@ -5,7 +5,7 @@ All notable changes to JauAuth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] - 2025-07-05
 
 ### Added
 - **Timeout Configuration Support** - Added `__timeout` parameter for long-running operations
@@ -29,8 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved error messages to suggest using `__timeout` for timeout errors
 
 ### Fixed
-- Fixed blocking issue with long-running operations like `wait_for_approval`
-- Resolved two-way communication issues with Telegram bot through JauAuth
+- **Fixed blocking issue with long-running operations** like `wait_for_approval`
+  - Implemented proper async response handling in Rust backend
+  - Added response reader background task for non-blocking operation
+  - Fixed race condition between sync and async response reading
+  - Response reader now starts before any requests to prevent conflicts
+  - All backend operations use async methods after initialization
+- **Resolved two-way communication issues** with Telegram bot through JauAuth
+  - Responses now properly flow back through the async system
+  - Request/response correlation working correctly with unique IDs
+  - Long-running operations (like waiting for user approval) now complete successfully
 
 ### Documentation
 - Added Timeout Configuration section to web dashboard docs

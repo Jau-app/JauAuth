@@ -4,10 +4,11 @@ use anyhow::{Result, anyhow};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, oneshot};
 use tokio::process::{Child, ChildStdin, ChildStdout};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tracing::{info, warn, error, debug};
+use std::time::Duration;
 
 use crate::simple_router::{BackendServer};
 use crate::sandbox::{build_sandbox_command};
@@ -22,15 +23,17 @@ pub struct BackendProcess {
     /// Child process handle
     child: Child,
     /// Stdin for sending requests
-    stdin: ChildStdin,
-    /// Buffered reader for stdout
-    stdout_reader: BufReader<ChildStdout>,
+    stdin: Arc<RwLock<ChildStdin>>,
+    /// Buffered reader for stdout (wrapped in Arc<RwLock> for sharing)
+    stdout_reader: Arc<RwLock<BufReader<ChildStdout>>>,
     /// Next request ID
     next_id: Arc<RwLock<u64>>,
     /// Tools exposed by this backend
     pub tools: Vec<Value>,
     /// Whether the backend is healthy
     pub healthy: bool,
+    /// Pending requests waiting for responses
+    pending_requests: Arc<RwLock<HashMap<u64, oneshot::Sender<Result<Value>>>>>,
 }
 
 impl BackendProcess {
@@ -58,14 +61,20 @@ impl BackendProcess {
         
         // Send request
         let request_str = format!("{}\n", request);
-        self.stdin.write_all(request_str.as_bytes()).await
-            .map_err(|e| anyhow!("Failed to write to backend {}: {}", self.server.id, e))?;
-        self.stdin.flush().await?;
+        {
+            let mut stdin = self.stdin.write().await;
+            stdin.write_all(request_str.as_bytes()).await
+                .map_err(|e| anyhow!("Failed to write to backend {}: {}", self.server.id, e))?;
+            stdin.flush().await?;
+        }
         
         // Read response
         let mut line = String::new();
-        self.stdout_reader.read_line(&mut line).await
-            .map_err(|e| anyhow!("Failed to read from backend {}: {}", self.server.id, e))?;
+        {
+            let mut reader = self.stdout_reader.write().await;
+            reader.read_line(&mut line).await
+                .map_err(|e| anyhow!("Failed to read from backend {}: {}", self.server.id, e))?;
+        }
         
         if line.is_empty() {
             return Err(anyhow!("Backend {} closed connection", self.server.id));
@@ -88,11 +97,135 @@ impl BackendProcess {
             .ok_or_else(|| anyhow!("No result in response from backend {}", self.server.id))
     }
     
+    /// Start a background task to read responses
+    fn start_response_reader(&self) {
+        let pending = self.pending_requests.clone();
+        let reader = self.stdout_reader.clone();
+        let server_id = self.server.id.clone();
+        
+        tokio::spawn(async move {
+            let mut line = String::new();
+            loop {
+                line.clear();
+                
+                // Read next line
+                let read_result = {
+                    let mut reader_guard = reader.write().await;
+                    reader_guard.read_line(&mut line).await
+                };
+                
+                if let Err(e) = read_result {
+                    error!("Response reader error for {}: {}", server_id, e);
+                    break;
+                }
+                
+                if line.is_empty() {
+                    info!("Backend {} closed connection", server_id);
+                    break;
+                }
+                
+                // Try to parse as JSON-RPC response
+                if let Ok(response) = serde_json::from_str::<Value>(&line) {
+                    // Check if it has an ID (not a notification)
+                    if let Some(id) = response.get("id").and_then(|v| v.as_u64()) {
+                        debug!("Received async response for request {}: {}", id, line.trim());
+                        
+                        // Find and complete the pending request
+                        let mut pending_guard = pending.write().await;
+                        if let Some(sender) = pending_guard.remove(&id) {
+                            // Parse the response
+                            let result = if let Some(error) = response.get("error") {
+                                Err(anyhow!("Backend error: {}", error))
+                            } else if let Some(result) = response.get("result") {
+                                Ok(result.clone())
+                            } else {
+                                Err(anyhow!("Invalid response: no result or error"))
+                            };
+                            
+                            // Send the result (ignore if receiver dropped)
+                            let _ = sender.send(result);
+                        } else {
+                            warn!("Received response for unknown request ID {}", id);
+                        }
+                    }
+                }
+            }
+            
+            // Clean up any pending requests on exit
+            let mut pending_guard = pending.write().await;
+            for (_id, sender) in pending_guard.drain() {
+                let _ = sender.send(Err(anyhow!("Backend {} disconnected", server_id)));
+            }
+        });
+    }
+    
+    /// Send a JSON-RPC request asynchronously with optional timeout
+    pub async fn send_request_async(&mut self, method: &str, params: Value, timeout: Option<Duration>) -> Result<Value> {
+        let id = self.next_request_id().await;
+        
+        // Create oneshot channel for response
+        let (tx, rx) = oneshot::channel();
+        
+        // Register pending request
+        {
+            let mut pending = self.pending_requests.write().await;
+            pending.insert(id, tx);
+        }
+        
+        // Build and send request
+        let request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": method,
+            "params": params
+        });
+        
+        debug!("Sending async request to {}: {}", self.server.id, request);
+        
+        let request_str = format!("{}\n", request);
+        {
+            let mut stdin = self.stdin.write().await;
+            stdin.write_all(request_str.as_bytes()).await
+                .map_err(|e| anyhow!("Failed to write to backend {}: {}", self.server.id, e))?;
+            stdin.flush().await?;
+        }
+        
+        // Wait for response with optional timeout
+        let result = match timeout {
+            Some(duration) => {
+                match tokio::time::timeout(duration, rx).await {
+                    Ok(Ok(result)) => result,
+                    Ok(Err(_)) => {
+                        // Receiver dropped, clean up
+                        let mut pending = self.pending_requests.write().await;
+                        pending.remove(&id);
+                        return Err(anyhow!("Response channel closed"));
+                    }
+                    Err(_) => {
+                        // Timeout, clean up
+                        let mut pending = self.pending_requests.write().await;
+                        pending.remove(&id);
+                        return Err(anyhow!("Request timeout after {:?}", duration));
+                    }
+                }
+            }
+            None => {
+                rx.await.map_err(|_| anyhow!("Response channel closed"))?
+            }
+        };
+        
+        result
+    }
+    
     /// Initialize the MCP connection
     pub async fn initialize(&mut self) -> Result<()> {
         info!("Initializing backend: {}", self.server.id);
         
-        // Send initialize request
+        // IMPORTANT: Start response reader BEFORE any requests
+        // This prevents the sync method from consuming responses
+        self.start_response_reader();
+        
+        // Send initialize request using ASYNC method to avoid conflicts
         let init_params = serde_json::json!({
             "protocolVersion": "0.1.0",
             "capabilities": {},
@@ -102,7 +235,8 @@ impl BackendProcess {
             }
         });
         
-        let result = self.send_request("initialize", init_params).await?;
+        // Use async method with a reasonable timeout for initialization
+        let result = self.send_request_async("initialize", init_params, Some(Duration::from_secs(10))).await?;
         
         // Validate response has required fields
         if !result.is_object() || !result.get("protocolVersion").is_some() {
@@ -119,15 +253,19 @@ impl BackendProcess {
         });
         
         let notification_str = format!("{}\n", notification);
-        self.stdin.write_all(notification_str.as_bytes()).await?;
-        self.stdin.flush().await?;
+        {
+            let mut stdin = self.stdin.write().await;
+            stdin.write_all(notification_str.as_bytes()).await?;
+            stdin.flush().await?;
+        }
         
         Ok(())
     }
     
     /// Get the list of tools from this backend
     pub async fn list_tools(&mut self) -> Result<Vec<Value>> {
-        let result = self.send_request("tools/list", serde_json::json!({})).await?;
+        // Use async method to avoid conflicts with response reader
+        let result = self.send_request_async("tools/list", serde_json::json!({}), Some(Duration::from_secs(10))).await?;
         
         let tools = result.get("tools")
             .and_then(|t| t.as_array())
@@ -158,10 +296,20 @@ impl BackendProcess {
         self.send_request("tools/call", params).await
     }
     
+    /// Call a tool on this backend with optional timeout
+    pub async fn call_tool_async(&mut self, tool_name: &str, arguments: Value, timeout: Option<Duration>) -> Result<Value> {
+        let params = serde_json::json!({
+            "name": tool_name,
+            "arguments": arguments
+        });
+        
+        self.send_request_async("tools/call", params, timeout).await
+    }
+    
     /// Check if the backend is still healthy
     pub async fn health_check(&mut self) -> bool {
         // Try a simple ping or tools/list request
-        match self.send_request("tools/list", serde_json::json!({})).await {
+        match self.send_request_async("tools/list", serde_json::json!({}), Some(Duration::from_secs(5))).await {
             Ok(_) => {
                 self.healthy = true;
                 true
@@ -179,8 +327,11 @@ impl BackendProcess {
         info!("Shutting down backend: {}", self.server.id);
         
         // Try to send a nice shutdown signal first
-        if let Err(e) = self.stdin.write_all(b"\n").await {
-            debug!("Failed to send EOF to backend {}: {}", self.server.id, e);
+        {
+            let mut stdin = self.stdin.write().await;
+            if let Err(e) = stdin.write_all(b"\n").await {
+                debug!("Failed to send EOF to backend {}: {}", self.server.id, e);
+            }
         }
         
         // Give it a moment to exit cleanly
@@ -234,23 +385,25 @@ impl BackendManager {
         let stdout = child.stdout.take()
             .ok_or_else(|| anyhow!("Failed to get stdout for backend {}", server.id))?;
         
-        let stdout_reader = BufReader::new(stdout);
+        let stdout_reader = Arc::new(RwLock::new(BufReader::new(stdout)));
+        let stdin = Arc::new(RwLock::new(stdin));
         
         // Create backend process
         let mut backend = BackendProcess {
             server: server.clone(),
             child,
-            stdin,
-            stdout_reader,
+            stdin: stdin.clone(),
+            stdout_reader: stdout_reader.clone(),
             next_id: Arc::new(RwLock::new(1)),
             tools: vec![],
             healthy: false,
+            pending_requests: Arc::new(RwLock::new(HashMap::new())),
         };
         
-        // Initialize the connection
+        // Initialize the connection (this now starts the response reader)
         backend.initialize().await?;
         
-        // Get initial tool list
+        // Get initial tool list (using async internally)
         backend.list_tools().await?;
         
         backend.healthy = true;
@@ -295,6 +448,26 @@ impl BackendManager {
         
         // Route the call
         backend.call_tool(tool_name, arguments).await
+    }
+    
+    /// Route a tool call to the appropriate backend with optional timeout
+    pub async fn route_tool_call_async(&self, full_tool_name: &str, arguments: Value, timeout: Option<Duration>) -> Result<Value> {
+        // Parse server_id:tool_name format
+        let parts: Vec<&str> = full_tool_name.splitn(2, ':').collect();
+        if parts.len() != 2 {
+            return Err(anyhow!("Invalid tool name format. Expected 'server_id:tool_name'"));
+        }
+        
+        let server_id = parts[0];
+        let tool_name = parts[1];
+        
+        // Get the backend
+        let mut backends = self.backends.write().await;
+        let backend = backends.get_mut(server_id)
+            .ok_or_else(|| anyhow!("Backend '{}' not found", server_id))?;
+        
+        // Route the call with timeout
+        backend.call_tool_async(tool_name, arguments, timeout).await
     }
     
     /// Shutdown all backends

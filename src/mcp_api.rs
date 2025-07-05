@@ -1,3 +1,4 @@
+
 //! HTTP API for MCP server communication
 
 use axum::{
@@ -8,8 +9,9 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
-use tracing::{info, error};
+use tracing::{info, error, debug};
 
 use crate::{
     simple_router::RouterConfig,
@@ -37,6 +39,8 @@ pub struct ToolInfo {
 pub struct ToolCallRequest {
     pub tool: String,
     pub arguments: Value,
+    #[serde(default)]
+    pub timeout_ms: Option<u64>,
 }
 
 /// Tool call response
@@ -63,16 +67,16 @@ pub async fn list_tools(
 ) -> Result<Json<serde_json::Value>, ErrorResponse> {
     let all_tools = state.backend_manager.get_all_tools().await;
     let backend_status = state.backend_manager.get_status().await;
-    
+
     let mut tools: Vec<ToolInfo> = Vec::new();
-    
+
     // Process tools from all backends
     for tool_value in all_tools {
         if let Some(tool_obj) = tool_value.as_object() {
             if let Some(name) = tool_obj.get("name").and_then(|n| n.as_str()) {
                 // Get server_id from tool name (format: server_id:tool_name)
                 let server_id = name.split(':').next().unwrap_or("");
-                
+
                 // Only include tools from healthy backends
                 if backend_status.get(server_id).copied().unwrap_or(false) {
                     tools.push(ToolInfo {
@@ -93,7 +97,7 @@ pub async fn list_tools(
             }
         }
     }
-    
+
     Ok(Json(serde_json::json!({
         "tools": tools
     })))
@@ -104,10 +108,21 @@ pub async fn call_tool(
     State(state): State<McpApiState>,
     Json(request): Json<ToolCallRequest>,
 ) -> Result<Json<ToolCallResponse>, ErrorResponse> {
-    info!("MCP API: Calling tool {}", request.tool);
+    info!("MCP API: Calling tool {} (timeout: {:?}ms)", request.tool, request.timeout_ms);
     
-    // The backend_manager expects the full tool name (server_id:tool_name)
-    match state.backend_manager.route_tool_call(&request.tool, request.arguments).await {
+    // Convert timeout_ms to Duration if provided
+    let timeout = request.timeout_ms.map(Duration::from_millis);
+    
+    // Use async version if timeout is specified, otherwise use sync for backward compatibility
+    let result = if timeout.is_some() {
+        debug!("Using async tool call with timeout: {:?}", timeout);
+        state.backend_manager.route_tool_call_async(&request.tool, request.arguments, timeout).await
+    } else {
+        debug!("Using synchronous tool call (no timeout specified)");
+        state.backend_manager.route_tool_call(&request.tool, request.arguments).await
+    };
+    
+    match result {
         Ok(result) => Ok(Json(ToolCallResponse { result })),
         Err(e) => {
             error!("Tool call failed: {}", e);
@@ -124,7 +139,7 @@ pub async fn get_status(
 ) -> Result<Json<serde_json::Value>, ErrorResponse> {
     let config = state.router_config.read().await;
     let backend_status = state.backend_manager.get_status().await;
-    
+
     let servers_status: Vec<serde_json::Value> = config.servers.iter().map(|server| {
         let healthy = backend_status.get(&server.id).copied().unwrap_or(false);
         serde_json::json!({
@@ -134,7 +149,7 @@ pub async fn get_status(
             "command": server.command,
         })
     }).collect();
-    
+
     Ok(Json(serde_json::json!({
         "router": "healthy",
         "total_servers": config.servers.len(),
@@ -149,7 +164,7 @@ pub async fn list_servers(
 ) -> Result<Json<serde_json::Value>, ErrorResponse> {
     let config = state.router_config.read().await;
     let backend_status = state.backend_manager.get_status().await;
-    
+
     let servers: Vec<serde_json::Value> = config.servers.iter().map(|server| {
         let healthy = backend_status.get(&server.id).copied().unwrap_or(false);
         serde_json::json!({
@@ -161,7 +176,7 @@ pub async fn list_servers(
             "requires_auth": server.requires_auth,
         })
     }).collect();
-    
+
     Ok(Json(serde_json::json!({
         "servers": servers
     })))
@@ -170,7 +185,7 @@ pub async fn list_servers(
 /// Router for MCP API endpoints
 pub fn mcp_api_routes() -> axum::Router<McpApiState> {
     use axum::routing::{get, post};
-    
+
     axum::Router::new()
         .route("/tools", get(list_tools))
         .route("/tool/call", post(call_tool))

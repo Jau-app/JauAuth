@@ -193,9 +193,13 @@ class JauAuthMCPServer {
               headers: { 'Content-Type': 'application/json' },
             });
         
+        // Only pass timeout_ms if user explicitly provided __timeout
+        const hasExplicitTimeout = args && typeof args === 'object' && '__timeout' in args;
+        
         const response = await requestBackend.post('/api/mcp/tool/call', {
           tool: backendToolName,
           arguments: cleanArgs,
+          timeout_ms: hasExplicitTimeout ? timeout : undefined,
         });
 
         return {
