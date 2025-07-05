@@ -5,7 +5,7 @@ All notable changes to JauAuth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2025-07-05
+## [0.2.0] - 2025-07-05
 
 ### Added
 - **Timeout Configuration Support** - Added `__timeout` parameter for long-running operations
@@ -22,13 +22,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests various timeout scenarios
   - Validates proper timeout behavior
   - Provides pass/fail summary
+- **Separate Launcher Support** - Added batch files for independent service launching
+  - `jauauth.bat` - Launches JauAuth combined server in its own terminal
+  - Simplified JauMemory launcher to focus on single service
+  - Better separation of concerns for service management
 
 ### Changed
 - Enhanced TypeScript MCP server to handle `__timeout` parameter
 - Updated tool aggregation to automatically document `__timeout` in all tools
 - Improved error messages to suggest using `__timeout` for timeout errors
+- **Backend `call_tool` method now always uses async communication**
+  - Changed from `send_request` to `send_request_async` with 30s default timeout
+  - Ensures all tool calls work properly with the response reader task
+  - Prevents synchronous/asynchronous reader conflicts
 
 ### Fixed
+- **Critical: Fixed blocking issue with all MCP tool calls through JauAuth**
+  - Root cause: `send_request` was reading stdout directly while response reader task was also consuming responses
+  - Solution: `call_tool` now always uses `send_request_async` to go through proper async channels
+  - This fix enables ALL tools to work correctly, not just long-running ones
 - **Fixed blocking issue with long-running operations** like `wait_for_approval`
   - Implemented proper async response handling in Rust backend
   - Added response reader background task for non-blocking operation

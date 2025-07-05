@@ -293,7 +293,9 @@ impl BackendProcess {
             "arguments": arguments
         });
         
-        self.send_request("tools/call", params).await
+        // Always use async method to avoid conflicts with response reader
+        // Use default timeout of 30 seconds for backward compatibility
+        self.send_request_async("tools/call", params, Some(Duration::from_secs(30))).await
     }
     
     /// Call a tool on this backend with optional timeout
