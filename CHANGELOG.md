@@ -5,6 +5,22 @@ All notable changes to JauAuth will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Fixed compilation errors preventing build on certain platforms**
+  - Added catch-all patterns for platform-specific sandbox strategies (MacOSSandbox, WindowsSandbox)
+  - Fixed non-exhaustive pattern matches in `src/dashboard.rs` and `src/bin/sandbox-check.rs`
+  - These sandbox strategies are conditionally compiled with `#[cfg(target_os = "...")]` attributes
+- **Fixed SQLx compile-time verification errors**
+  - Added instructions for setting DATABASE_URL environment variable
+  - Documented offline mode usage with `cargo sqlx prepare` for CI/CD environments
+  - SQLx requires database access at compile time to verify SQL queries
+
+### Documentation
+- Updated compilation instructions to include DATABASE_URL setup
+- Added troubleshooting notes for platform-specific compilation issues
+
 ## [0.2.0] - 2025-07-05
 
 ### Added
