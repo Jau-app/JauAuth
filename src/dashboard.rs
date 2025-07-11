@@ -119,6 +119,7 @@ pub async fn list_servers(
             crate::sandbox::SandboxStrategy::Podman { .. } => "Podman",
             crate::sandbox::SandboxStrategy::Firejail { .. } => "Firejail",
             crate::sandbox::SandboxStrategy::Bubblewrap { .. } => "Bubblewrap",
+            _ => "Platform-specific",
         }.to_string();
         
         servers.push(ServerStatus {

@@ -56,6 +56,12 @@ async fn main() {
                 println!("     Use when: Flatpak-style isolation needed");
                 println!("     Setup: sudo apt install bubblewrap");
             }
+            
+            _ => {
+                println!("  {} Platform-specific sandbox", "🔒");
+                println!("     Security: Varies by platform");
+                println!("     Use when: Platform-specific security is needed");
+            }
         }
         println!();
     }
