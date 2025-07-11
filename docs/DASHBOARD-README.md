@@ -36,7 +36,7 @@ A secure web-based dashboard for managing MCP servers and authentication setting
 cargo run --bin jau-auth -- web
 
 # Start on custom port
-cargo run --bin jau-auth -- web --port 8080
+cargo run --bin jau-auth -- web --port 7448
 
 # Start with router configuration
 cargo run --bin jau-auth -- web --config router-config.json

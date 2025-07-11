@@ -78,7 +78,7 @@ impl Default for AuthConfig {
             ],
             database_url: "sqlite://jauauth.db".to_string(),
             host: "127.0.0.1".to_string(),
-            port: 8080,
+            port: 7448,
             jwt_secret: generate_secret(),
             session_duration: Duration::from_secs(30 * 60), // 30 minutes
             pin_grace_period: Duration::from_secs(5 * 60),  // 5 minutes
@@ -87,7 +87,7 @@ impl Default for AuthConfig {
             webauthn: WebAuthnConfig {
                 rp_id: "localhost".to_string(),
                 rp_name: "JauAuth".to_string(),
-                rp_origin: "https://localhost:8080".to_string(),
+                rp_origin: "https://localhost:7448".to_string(),
             },
         }
     }

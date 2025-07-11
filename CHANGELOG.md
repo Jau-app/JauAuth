@@ -17,9 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Documented offline mode usage with `cargo sqlx prepare` for CI/CD environments
   - SQLx requires database access at compile time to verify SQL queries
 
+### Changed
+- **Default web dashboard port changed from 8080 to 7448** to avoid conflicts with common development servers
+  - Updated default port in `src/config.rs`
+  - Updated WebAuthn origin to use port 7448
+  - Updated all documentation references
+  - No breaking changes for existing deployments using JAUAUTH_PORT environment variable
+
 ### Documentation
 - Updated compilation instructions to include DATABASE_URL setup
 - Added troubleshooting notes for platform-specific compilation issues
+- Updated all port references in documentation from 8080 to 7448
 
 ## [0.2.0] - 2025-07-05
 
