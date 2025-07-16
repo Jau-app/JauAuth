@@ -40,11 +40,26 @@ pub struct BackendServer {
     pub id: String,
     /// Display name for the server
     pub name: String,
-    /// Command to launch the server (e.g., "npx", "python", "cargo")
-    pub command: String,
-    /// Arguments for the command
+    /// Server type (local or remote)
+    #[serde(default = "default_server_type")]
+    pub r#type: ServerType,
+    /// Command to launch the server (for local servers)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+    /// Arguments for the command (for local servers)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
+    /// URL for remote servers
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// Transport type for remote servers
+    #[serde(default = "default_transport")]
+    pub transport: TransportType,
+    /// Authentication configuration for remote servers
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<RemoteAuthConfig>,
     /// Environment variables
+    #[serde(default)]
     pub env: HashMap<String, String>,
     /// Whether authentication is required for this server
     pub requires_auth: bool,
@@ -53,7 +68,82 @@ pub struct BackendServer {
     /// Sandbox configuration (optional, defaults to platform default)
     #[serde(default)]
     pub sandbox: SandboxConfig,
+    /// Timeout in milliseconds
+    #[serde(default = "default_timeout_ms")]
+    pub timeout_ms: u64,
+    /// Retry configuration for remote servers
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry: Option<RetryConfig>,
+    /// TLS configuration for remote servers
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tls: Option<TlsConfig>,
 }
+
+/// Server type
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ServerType {
+    Local,
+    Remote,
+}
+
+/// Transport type for remote servers
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TransportType {
+    Sse,
+    #[serde(rename = "websocket")]
+    WebSocket,
+}
+
+/// Remote authentication configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum RemoteAuthConfig {
+    None,
+    Bearer { token: String },
+    Basic { username: String, password: String },
+    OAuth {
+        provider: String,
+        client_id: String,
+        client_secret: String,
+        #[serde(default)]
+        scopes: Vec<String>,
+    },
+    Custom {
+        headers: HashMap<String, String>,
+    },
+}
+
+/// Retry configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RetryConfig {
+    #[serde(default = "default_max_attempts")]
+    pub max_attempts: u32,
+    #[serde(default = "default_initial_backoff_ms")]
+    pub initial_backoff_ms: u64,
+    #[serde(default = "default_max_backoff_ms")]
+    pub max_backoff_ms: u64,
+}
+
+/// TLS configuration
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TlsConfig {
+    #[serde(default = "default_true")]
+    pub verify_cert: bool,
+    pub ca_cert: Option<String>,
+    pub client_cert: Option<String>,
+    pub client_key: Option<String>,
+}
+
+// Default functions
+fn default_server_type() -> ServerType { ServerType::Local }
+fn default_transport() -> TransportType { TransportType::Sse }
+fn default_timeout_ms() -> u64 { 30000 }
+fn default_max_attempts() -> u32 { 3 }
+fn default_initial_backoff_ms() -> u64 { 1000 }
+fn default_max_backoff_ms() -> u64 { 30000 }
+fn default_true() -> bool { true }
 
 /// Configuration for the router
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,43 +201,81 @@ fn validate_command(cmd: &str) -> Result<()> {
 
 /// Validate server configuration for security
 pub async fn validate_server_config(server: &BackendServer) -> Result<()> {
-    // Validate command
-    validate_command(&server.command)?;
-    
     // Validate server ID (alphanumeric + dash/underscore only)
     if !server.id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
         return Err(anyhow!("Server ID must be alphanumeric with dashes/underscores only"));
     }
     
-    // Validate arguments don't contain shell injection attempts
-    for arg in &server.args {
-        // Allow environment variable references like $USER, $HOME, ${VAR}
-        let has_env_var = arg.contains('$');
-        
-        // Check for dangerous characters (excluding $ for env vars)
-        if arg.contains(&['|', ';', '&', '`'][..]) {
-            return Err(anyhow!("Argument contains potentially dangerous characters: {}", arg));
-        }
-        
-        // If it has $, validate it's a proper env var reference
-        if has_env_var {
-            // Check for common dangerous patterns with $
-            if arg.contains("$(") || arg.contains("$`") || arg.contains("${(") || arg.contains("${`") {
-                return Err(anyhow!("Argument contains dangerous command substitution: {}", arg));
+    match server.r#type {
+        ServerType::Local => {
+            // Validate command for local servers
+            let command = server.command.as_ref()
+                .ok_or_else(|| anyhow!("Local server must have a command"))?;
+            validate_command(command)?;
+            
+            // Validate arguments don't contain shell injection attempts
+            for arg in &server.args {
+                // Allow environment variable references like $USER, $HOME, ${VAR}
+                let has_env_var = arg.contains('$');
+                
+                // Check for dangerous characters (excluding $ for env vars)
+                if arg.contains(&['|', ';', '&', '`'][..]) {
+                    return Err(anyhow!("Argument contains potentially dangerous characters: {}", arg));
+                }
+                
+                // If it has $, validate it's a proper env var reference
+                if has_env_var {
+                    // Check for common dangerous patterns with $
+                    if arg.contains("$(") || arg.contains("$`") || arg.contains("${(") || arg.contains("${`") {
+                        return Err(anyhow!("Argument contains dangerous command substitution: {}", arg));
+                    }
+                    
+                    // Validate it looks like a proper env var reference
+                    // Allow: $VAR, ${VAR}, $VAR_NAME, text$VAR, etc.
+                    // This is a basic check - the actual env var expansion happens at runtime
+                    if !arg.chars().any(|c| c.is_alphanumeric() || c == '_' || c == '=' || c == '-' || c == '/' || c == '.' || c == ':') {
+                        return Err(anyhow!("Argument appears to be invalid: {}", arg));
+                    }
+                }
             }
             
-            // Validate it looks like a proper env var reference
-            // Allow: $VAR, ${VAR}, $VAR_NAME, text$VAR, etc.
-            // This is a basic check - the actual env var expansion happens at runtime
-            if !arg.chars().any(|c| c.is_alphanumeric() || c == '_' || c == '=' || c == '-' || c == '/' || c == '.' || c == ':') {
-                return Err(anyhow!("Argument appears to be invalid: {}", arg));
+            // Validate sandbox strategy is available
+            crate::sandbox::validate_sandbox_strategy(&server.sandbox.strategy).await
+                .map_err(|e| anyhow!("Sandbox validation failed: {}", e))?;
+        }
+        ServerType::Remote => {
+            // Validate URL for remote servers
+            let url = server.url.as_ref()
+                .ok_or_else(|| anyhow!("Remote server must have a URL"))?;
+            
+            // Basic URL validation
+            if !url.starts_with("http://") && !url.starts_with("https://") {
+                return Err(anyhow!("Remote server URL must start with http:// or https://"));
+            }
+            
+            // Validate auth config if present
+            if let Some(auth) = &server.auth {
+                match auth {
+                    RemoteAuthConfig::Bearer { token } => {
+                        if token.is_empty() {
+                            return Err(anyhow!("Bearer token cannot be empty"));
+                        }
+                    }
+                    RemoteAuthConfig::Basic { username, password } => {
+                        if username.is_empty() || password.is_empty() {
+                            return Err(anyhow!("Basic auth username and password cannot be empty"));
+                        }
+                    }
+                    RemoteAuthConfig::OAuth { client_id, client_secret, .. } => {
+                        if client_id.is_empty() || client_secret.is_empty() {
+                            return Err(anyhow!("OAuth client_id and client_secret cannot be empty"));
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
     }
-    
-    // Validate sandbox strategy is available
-    crate::sandbox::validate_sandbox_strategy(&server.sandbox.strategy).await
-        .map_err(|e| anyhow!("Sandbox validation failed: {}", e))?;
     
     Ok(())
 }
@@ -326,16 +454,22 @@ impl SimpleRouter {
                     
                     "router:list_servers" => {
                         let servers: Vec<_> = self.config.servers.iter()
-                            .map(|s| format!("- {} ({}): {} [Sandbox: {:?}]", 
-                                s.name, s.id, s.command, 
-                                match &s.sandbox.strategy {
-                                    SandboxStrategy::None => "None",
-                                    SandboxStrategy::Docker { .. } => "Docker",
-                                    SandboxStrategy::Firejail { .. } => "Firejail",
-                                    SandboxStrategy::Bubblewrap { .. } => "Bubblewrap",
-                                    _ => "Other",
-                                }
-                            ))
+                            .map(|s| {
+                                let server_type = match s.r#type {
+                                    ServerType::Local => format!("{}", s.command.as_deref().unwrap_or("<no command>")),
+                                    ServerType::Remote => format!("{}", s.url.as_deref().unwrap_or("<no url>")),
+                                };
+                                format!("- {} ({}): {} [Type: {:?}, Sandbox: {:?}]", 
+                                    s.name, s.id, server_type, s.r#type,
+                                    match &s.sandbox.strategy {
+                                        SandboxStrategy::None => "None",
+                                        SandboxStrategy::Docker { .. } => "Docker",
+                                        SandboxStrategy::Firejail { .. } => "Firejail",
+                                        SandboxStrategy::Bubblewrap { .. } => "Bubblewrap",
+                                        _ => "Other",
+                                    }
+                                )
+                            })
                             .collect();
                             
                         serde_json::json!({

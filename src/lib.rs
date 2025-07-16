@@ -10,7 +10,9 @@ pub mod database;
 pub mod device;
 pub mod middleware;
 // pub mod router; // Temporarily disabled
-pub mod backend_manager;
+// Use the new backend_manager_v2 that supports remote servers
+pub use backend_manager_v2 as backend_manager;
+pub mod backend_manager_v2;
 pub mod sandbox;
 pub mod security;
 pub mod simple_router;
@@ -19,11 +21,38 @@ pub mod web;
 pub mod webauthn;
 pub mod mcp_api;
 pub mod rate_limit;
+pub mod transport;
+pub mod mcp_types;
 
 pub use auth::{AuthService, AuthError};
 pub use config::{AuthConfig, PermissionGroup};
 pub use middleware::AuthMiddleware;
 pub use session::{Session, SessionManager};
+
+/// General error type for JauAuth
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Backend error: {0}")]
+    BackendError(String),
+    
+    #[error("Network error: {0}")]
+    NetworkError(String),
+    
+    #[error("Spawn error: {0}")]
+    SpawnError(String),
+    
+    #[error("Config error: {0}")]
+    ConfigError(String),
+    
+    #[error("JSON error: {0}")]
+    JsonError(#[from] serde_json::Error),
+    
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+    
+    #[error("Other error: {0}")]
+    Other(String),
+}
 
 use std::sync::Arc;
 use sqlx::SqlitePool;

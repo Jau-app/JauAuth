@@ -119,7 +119,6 @@ pub async fn list_servers(
             crate::sandbox::SandboxStrategy::Podman { .. } => "Podman",
             crate::sandbox::SandboxStrategy::Firejail { .. } => "Firejail",
             crate::sandbox::SandboxStrategy::Bubblewrap { .. } => "Bubblewrap",
-            _ => "Platform-specific",
         }.to_string();
         
         servers.push(ServerStatus {
@@ -163,12 +162,19 @@ pub async fn add_server(
     let server = BackendServer {
         id: request.id.clone(),
         name: request.name,
-        command: request.command,
+        r#type: crate::simple_router::ServerType::Local, // Default to local
+        command: Some(request.command),
         args: request.args,
+        url: None,
+        transport: crate::simple_router::TransportType::Sse,
+        auth: None,
         env: request.env,
         requires_auth: request.requires_auth,
         allowed_users: request.allowed_users,
         sandbox: request.sandbox,
+        timeout_ms: 30000,
+        retry: None,
+        tls: None,
     };
     
     // Validate the server configuration
@@ -245,12 +251,19 @@ pub async fn update_server(
     let server = BackendServer {
         id: request.id.clone(),
         name: request.name,
-        command: request.command,
+        r#type: crate::simple_router::ServerType::Local, // Default to local
+        command: Some(request.command),
         args: request.args,
+        url: None,
+        transport: crate::simple_router::TransportType::Sse,
+        auth: None,
         env: request.env,
         requires_auth: request.requires_auth,
         allowed_users: request.allowed_users,
         sandbox: request.sandbox,
+        timeout_ms: 30000,
+        retry: None,
+        tls: None,
     };
     
     config.servers.push(server.clone());

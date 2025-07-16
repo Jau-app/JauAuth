@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Remote MCP Server Support** - JauAuth can now connect to remote MCP servers via HTTP/SSE
+  - New `Transport` abstraction layer (`src/transport/mod.rs`) for unified local/remote interface
+  - SSE (Server-Sent Events) transport implementation (`src/transport/sse.rs`)
+  - Standard I/O transport implementation (`src/transport/stdio.rs`)
+  - Support for remote server authentication (Bearer, Basic, OAuth, custom headers)
+  - Automatic retry with exponential backoff for remote connections
+  - TLS configuration options for certificate validation
+- **Backend Manager V2** (`src/backend_manager_v2.rs`) - Enhanced backend management
+  - Supports both local (stdio) and remote (HTTP/SSE) server types
+  - Maintains 100% backward compatibility with existing configurations
+  - Improved error handling and connection management
+- **MCP Types Module** (`src/mcp_types.rs`) - Centralized MCP protocol type definitions
+- **Remote Server Documentation** - Comprehensive guides for remote server setup
+  - `REMOTE_SERVERS_SUMMARY.md` - Quick overview and configuration examples
+  - `docs/REMOTE_SERVERS_PLAN.md` - Technical implementation details
+  - `docs/REMOTE_SERVERS_QUICKSTART.md` - Getting started guide
+  - `examples/remote-server-config.json` - Example configurations
+
 ### Fixed
 - **Fixed compilation errors preventing build on certain platforms**
   - Added catch-all patterns for platform-specific sandbox strategies (MacOSSandbox, WindowsSandbox)
@@ -16,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added instructions for setting DATABASE_URL environment variable
   - Documented offline mode usage with `cargo sqlx prepare` for CI/CD environments
   - SQLx requires database access at compile time to verify SQL queries
+- **Fixed deprecated base64 API usage** - Updated to use base64::Engine trait
+- **Fixed unreachable pattern in sandbox-check binary** - Added catch-all for non-Linux platforms
 
 ### Changed
 - **Default web dashboard port changed from 8080 to 7448** to avoid conflicts with common development servers
@@ -23,11 +44,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated WebAuthn origin to use port 7448
   - Updated all documentation references
   - No breaking changes for existing deployments using JAUAUTH_PORT environment variable
+- **Enhanced router to support both local and remote servers** with unified interface
+- **Updated simple_router.rs** to use backend_manager_v2 for improved functionality
+
+### Security
+- **Security Audit Findings** - Discovered and documented critical security issues
+  - All example servers configured with no sandboxing (`"strategy": "none"`)
+  - Authentication not enforced (`"requires_auth": false` on all servers)
+  - Missing rate limiting implementation despite being mentioned in docs
+  - Immediate actions required before production deployment (see AUDIT_REPORT.md)
 
 ### Documentation
 - Updated compilation instructions to include DATABASE_URL setup
 - Added troubleshooting notes for platform-specific compilation issues
 - Updated all port references in documentation from 8080 to 7448
+- Created comprehensive remote server configuration documentation
+- Added security audit report with critical findings and remediation steps
 
 ## [0.2.0] - 2025-07-05
 

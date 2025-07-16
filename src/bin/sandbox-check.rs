@@ -57,10 +57,20 @@ async fn main() {
                 println!("     Setup: sudo apt install bubblewrap");
             }
             
-            _ => {
-                println!("  {} Platform-specific sandbox", "🔒");
-                println!("     Security: Varies by platform");
-                println!("     Use when: Platform-specific security is needed");
+            #[cfg(target_os = "windows")]
+            SandboxStrategy::WindowsSandbox { .. } => {
+                println!("  {} Windows Sandbox", "🪟");
+                println!("     Security: {}", "HIGH - Windows container isolation".green());
+                println!("     Use when: Running on Windows 10/11 Pro");
+                println!("     Setup: Enable Windows Sandbox feature");
+            }
+            
+            #[cfg(target_os = "macos")]
+            SandboxStrategy::MacOSSandbox { .. } => {
+                println!("  {} macOS App Sandbox", "🍎");
+                println!("     Security: {}", "HIGH - macOS app isolation".green());
+                println!("     Use when: Running on macOS with code signing");
+                println!("     Setup: Requires code signing certificates");
             }
         }
         println!();
