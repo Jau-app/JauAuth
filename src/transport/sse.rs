@@ -14,7 +14,6 @@ pub struct SseTransport {
     client: Client,
     url: String,
     auth: AuthConfig,
-    timeout: Duration,
     retry: RetryConfig,
     request_id: Arc<Mutex<u64>>,
     // Note: eventsource_client::Client is a trait, we'll handle SSE differently
@@ -58,7 +57,6 @@ impl SseTransport {
             client,
             url,
             auth,
-            timeout: Duration::from_millis(timeout_ms),
             retry,
             request_id: Arc::new(Mutex::new(1)),
             _event_source: Arc::new(Mutex::new(None)),

@@ -6,6 +6,7 @@ pub mod auth;
 pub mod auth_middleware;
 pub mod config;
 pub mod dashboard;
+pub mod dashboard_v2;
 pub mod database;
 pub mod device;
 pub mod middleware;
@@ -23,6 +24,9 @@ pub mod mcp_api;
 pub mod rate_limit;
 pub mod transport;
 pub mod mcp_types;
+pub mod crypto;
+pub mod server_store;
+pub mod server_loader;
 
 pub use auth::{AuthService, AuthError};
 pub use config::{AuthConfig, PermissionGroup};

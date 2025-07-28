@@ -1,0 +1,75 @@
+{
+  "timeout_ms": 30000,
+  "cache_tools": true,
+  "servers": [
+    {
+      "id": "echo",
+      "name": "Echo Test Server",
+      "command": "node",
+      "args": ["/mnt/r/devR/AI/Jau/JauAuth/test-servers/echo-server.js"],
+      "env": {},
+      "requires_auth": true,
+      "allowed_users": ["jefe2"],
+      "sandbox": {
+        "strategy": {
+          "firejail": {
+            "profile": "default",
+            "net": false,
+            "whitelist_paths": [],
+            "read_only_paths": [],
+            "no_root": true
+          }
+        },
+        "env_passthrough": ["HOME", "USER", "PATH", "NODE_ENV"]
+      }
+    },
+    {
+      "id": "jaumemory",
+      "name": "JauMemory",
+      "command": "node",
+      "args": ["/mnt/r/devR/AI/Jau/JauMemory/mcp-server/dist/index.js"],
+      "env": {
+        "GRPC_SERVER_ADDRESS": "localhost:50051",
+        "DEFAULT_USER_ID": "$USER",
+        "LOG_LEVEL": "info"
+      },
+      "requires_auth": true,
+      "allowed_users": ["jefe2"],
+      "sandbox": {
+        "strategy": {
+          "firejail": {
+            "profile": "default",
+            "net": true,
+            "whitelist_paths": ["${HOME}/.local/share/jaumemory", "/tmp"],
+            "read_only_paths": [],
+            "no_root": true,
+            "netfilter": "/etc/jauauth/netfilter/localhost-only.net"
+          }
+        },
+        "env_passthrough": ["HOME", "USER", "PATH", "NODE_ENV", "GRPC_SERVER_ADDRESS", "DEFAULT_USER_ID", "LOG_LEVEL"]
+      }
+    },
+    {
+      "id": "jau-tg",
+      "name": "Jau-TG",
+      "command": "node",
+      "args": ["/mnt/r/devR/AI/Jau/Jau-TG/build/index.js"],
+      "env": {},
+      "requires_auth": true,
+      "allowed_users": ["jefe2"],
+      "sandbox": {
+        "strategy": {
+          "firejail": {
+            "profile": "default",
+            "net": true,
+            "whitelist_paths": ["${HOME}/.config/jau-tg", "/tmp"],
+            "read_only_paths": [],
+            "no_root": true,
+            "netfilter": "/etc/jauauth/netfilter/telegram-only.net"
+          }
+        },
+        "env_passthrough": ["HOME", "USER", "PATH", "NODE_ENV"]
+      }
+    }
+  ]
+}

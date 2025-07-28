@@ -15,6 +15,11 @@ class JauAuthDashboard {
         // Setup navigation
         this.setupNavigation();
         
+        // Initialize server modal with app instance
+        if (window.serverModal) {
+            window.serverModal.init(this);
+        }
+        
         // Setup CSRF protection
         await this.setupSecurity();
         
@@ -71,13 +76,19 @@ class JauAuthDashboard {
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.remove('active');
         });
-        document.querySelector(`a[href="#${section}"]`).classList.add('active');
+        const navLink = document.querySelector(`a[href="#${section}"]`);
+        if (navLink) {
+            navLink.classList.add('active');
+        }
         
         // Update active section
         document.querySelectorAll('.section').forEach(sec => {
             sec.classList.remove('active');
         });
-        document.getElementById(section).classList.add('active');
+        const sectionElement = document.getElementById(section);
+        if (sectionElement) {
+            sectionElement.classList.add('active');
+        }
         
         this.currentSection = section;
         
@@ -119,8 +130,26 @@ class JauAuthDashboard {
             }
             
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || `HTTP ${response.status}`);
+                let errorMessage;
+                const contentType = response.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    try {
+                        const error = await response.json();
+                        errorMessage = error.error || error.message || `HTTP ${response.status}`;
+                    } catch (e) {
+                        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                    }
+                } else {
+                    // Try to get text error message
+                    try {
+                        errorMessage = await response.text();
+                    } catch (e) {
+                        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                    }
+                }
+                
+                throw new Error(errorMessage);
             }
             
             return await response.json();
@@ -228,6 +257,21 @@ class JauAuthDashboard {
     }
     
     async loadTools() {
+        // Load tools module if not already loaded
+        if (!window.toolsModule) {
+            window.toolsModule = new window.ToolsModule('/api/dashboard');
+        }
+        
+        // Initialize the tools module in the tools section
+        const toolsSection = document.getElementById('tools');
+        if (toolsSection) {
+            await window.toolsModule.init(toolsSection);
+        }
+    }
+    
+    // ORIGINAL loadTools - kept for reference
+    /*
+    async loadToolsOriginal() {
         try {
             const tools = await this.apiCall('/api/dashboard/tools');
             this.tools = tools;
@@ -258,6 +302,7 @@ class JauAuthDashboard {
             console.error('Failed to load tools:', error);
         }
     }
+    */
     
     loadDocs() {
         // Setup docs navigation
@@ -418,6 +463,7 @@ class JauAuthDashboard {
     
     showAddServerModal() {
         document.getElementById('modalTitle').textContent = 'Add Server';
+        document.getElementById('saveServerBtn').textContent = 'Add Server';
         document.getElementById('serverForm').reset();
         document.getElementById('serverId').disabled = false;
         document.getElementById('serverModal').classList.add('active');
@@ -442,47 +488,16 @@ class JauAuthDashboard {
     }
     
     async editServer(serverId) {
-        try {
-            const server = await this.apiCall(`/api/dashboard/servers/${serverId}`);
-            
-            document.getElementById('modalTitle').textContent = 'Edit Server';
-            document.getElementById('serverId').value = server.id;
-            document.getElementById('serverId').disabled = true;
-            document.getElementById('serverName').value = server.name;
-            document.getElementById('serverCommand').value = server.command;
-            document.getElementById('serverArgs').value = server.args.join(' ');
-            document.getElementById('requiresAuth').checked = server.requires_auth;
-            document.getElementById('allowedUsers').value = (server.allowed_users || []).join(', ');
-            
-            // Set sandbox strategy
-            const strategy = server.sandbox.strategy;
-            if (typeof strategy === 'string') {
-                document.getElementById('sandboxStrategy').value = strategy;
-            } else if (strategy.docker) {
-                document.getElementById('sandboxStrategy').value = 'docker';
-            } else if (strategy.podman) {
-                document.getElementById('sandboxStrategy').value = 'podman';
-            } else if (strategy.firejail) {
-                document.getElementById('sandboxStrategy').value = 'firejail';
-            } else if (strategy.bubblewrap) {
-                document.getElementById('sandboxStrategy').value = 'bubblewrap';
-            }
-            
-            // Populate JSON editor
-            document.getElementById('jsonEditor').value = JSON.stringify(server, null, 2);
-            
-            // Show/hide allowed users field
-            document.getElementById('allowedUsersGroup').style.display = 
-                server.requires_auth ? 'block' : 'none';
-            
-            document.getElementById('serverModal').classList.add('active');
-            this.setEditorView('split');
-        } catch (error) {
-            console.error('Failed to load server:', error);
+        // Use the serverModal object to properly handle edit mode
+        if (window.serverModal) {
+            window.serverModal.open(serverId);
+        } else {
+            console.error('Server modal not initialized');
         }
     }
     
-    async saveServer(event) {
+    // DEPRECATED - Now handled by serverModal.save()
+    /* async saveServer(event) {
         event.preventDefault();
         
         const form = event.target;
@@ -536,7 +551,7 @@ class JauAuthDashboard {
         } catch (error) {
             console.error('Failed to save server:', error);
         }
-    }
+    } */
     
     async deleteServer(serverId) {
         if (!confirm(`Are you sure you want to delete server "${serverId}"?`)) {
@@ -568,7 +583,8 @@ class JauAuthDashboard {
         }
     }
     
-    async testTool(toolName) {
+    // MOVED TO tools.js
+    /* async testTool(toolName) {
         const tool = this.tools.find(t => t.name === toolName);
         if (!tool) return;
         
@@ -607,9 +623,10 @@ class JauAuthDashboard {
         
         document.getElementById('toolTestContent').innerHTML = formHtml;
         document.getElementById('toolModal').classList.add('active');
-    }
+    } */
     
-    async runToolTest(event) {
+    // MOVED TO tools.js  
+    /* async runToolTest(event) {
         event.preventDefault();
         
         const form = event.target;
@@ -646,7 +663,7 @@ class JauAuthDashboard {
         } catch (error) {
             console.error('Tool test failed:', error);
         }
-    }
+    } */
     
     async saveSettings(event) {
         event.preventDefault();
@@ -674,9 +691,36 @@ class JauAuthDashboard {
         document.getElementById('serverModal').classList.remove('active');
     }
     
-    closeToolModal() {
-        document.getElementById('toolModal').classList.remove('active');
+    updateSandboxFields() {
+        // This function updates sandbox-specific fields based on selected strategy
+        const strategy = document.getElementById('sandboxStrategy').value;
+        const options = document.querySelectorAll('.strategy-options');
+        
+        // Hide all options first
+        options.forEach(opt => opt.style.display = 'none');
+        
+        // Show relevant options
+        switch(strategy) {
+            case 'docker':
+            case 'podman':
+                const dockerOpts = document.getElementById('dockerOptions');
+                if (dockerOpts) dockerOpts.style.display = 'block';
+                break;
+            case 'firejail':
+                const firejailOpts = document.getElementById('firejailOptions');
+                if (firejailOpts) firejailOpts.style.display = 'block';
+                break;
+            case 'bubblewrap':
+                const bubblewrapOpts = document.getElementById('bubblewrapOptions');
+                if (bubblewrapOpts) bubblewrapOpts.style.display = 'block';
+                break;
+        }
     }
+    
+    // MOVED TO tools.js
+    /* closeToolModal() {
+        document.getElementById('toolModal').classList.remove('active');
+    } */
     
     formatUptime(seconds) {
         if (seconds === 0) return 'Just started';
@@ -699,15 +743,55 @@ class JauAuthDashboard {
         return div.innerHTML;
     }
     
+    showToast(message, type = 'info') {
+        // Create toast container if it doesn't exist
+        let toastContainer = document.getElementById('toastContainer');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toastContainer';
+            toastContainer.className = 'toast-container';
+            document.body.appendChild(toastContainer);
+        }
+        
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        
+        // Add icon based on type
+        const icons = {
+            success: '✅',
+            error: '❌',
+            info: 'ℹ️',
+            warning: '⚠️'
+        };
+        
+        toast.innerHTML = `
+            <span class="toast-icon">${icons[type] || icons.info}</span>
+            <span class="toast-message">${this.escapeHtml(message)}</span>
+            <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        // Auto-remove after 5 seconds (10 seconds for errors)
+        setTimeout(() => {
+            toast.remove();
+        }, type === 'error' ? 10000 : 5000);
+    }
+    
     showSuccess(message) {
-        // TODO: Implement toast notifications
         console.log('Success:', message);
+        this.showToast(message, 'success');
+    }
+    
+    showInfo(message) {
+        console.log('Info:', message);
+        this.showToast(message, 'info');
     }
     
     showError(message) {
-        // TODO: Implement toast notifications
         console.error('Error:', message);
-        alert('Error: ' + message);
+        this.showToast(message, 'error');
     }
     
     startAutoRefresh() {
@@ -720,7 +804,7 @@ class JauAuthDashboard {
     }
     
     // JSON Editor Functions
-    setEditorView(view) {
+    setEditorView(view, event) {
         const container = document.getElementById('editorContainer');
         const toggleButtons = document.querySelectorAll('.toggle-btn');
         
@@ -728,7 +812,15 @@ class JauAuthDashboard {
         toggleButtons.forEach(btn => {
             btn.classList.remove('active');
         });
-        event.target.classList.add('active');
+        
+        // Add active class to the clicked button if event is provided
+        if (event && event.target) {
+            event.target.classList.add('active');
+        } else {
+            // If no event, find the button that matches the view
+            const targetBtn = document.querySelector(`.toggle-btn[onclick*="${view}"]`);
+            if (targetBtn) targetBtn.classList.add('active');
+        }
         
         // Update container class
         container.className = 'editor-container';
@@ -879,7 +971,8 @@ class JauAuthDashboard {
         }
     }
     
-    // Override saveServer to support JSON input
+    // DEPRECATED - Now handled by serverModal.save()
+    /* // Override saveServer to support JSON input
     async saveServer(event) {
         event.preventDefault();
         
@@ -954,7 +1047,7 @@ class JauAuthDashboard {
             console.error('Failed to save server:', error);
             this.showError('Failed to save server: ' + error.message);
         }
-    }
+    } */
     
     // Theme Management
     initTheme() {
@@ -1107,3 +1200,4 @@ class JauAuthDashboard {
 
 // Initialize app when DOM is ready
 const app = new JauAuthDashboard();
+window.app = app; // Make app globally accessible for debugging

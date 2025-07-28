@@ -47,6 +47,8 @@ tonic = "0.12.3"
 rand = "0.8"
 sha2 = "0.10"
 base64 = "0.21"
+aes-gcm = "0.10"
+hmac = "0.12"
 
 # Logging
 tracing = "0.1"

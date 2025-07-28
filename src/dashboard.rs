@@ -1,7 +1,7 @@
 //! Dashboard API for managing MCP servers and settings
 
 use axum::{
-    extract::{Path, State, Json},
+    extract::{Path, State, Json, Extension},
     response::{IntoResponse, Response},
     http::StatusCode,
 };
@@ -16,6 +16,9 @@ use crate::{
     AuthContext,
     simple_router::{BackendServer, RouterConfig},
     backend_manager::BackendManager,
+    server_store::ServerStore,
+    crypto::derive_key,
+    session::Session,
 };
 
 /// Dashboard state shared across handlers
@@ -72,11 +75,61 @@ fn default_persist_to_config() -> bool {
 pub struct ApiError {
     pub error: String,
     pub code: String,
+    #[serde(skip)]
+    pub status: StatusCode,
+}
+
+impl ApiError {
+    /// Create a new ApiError with BAD_REQUEST status
+    pub fn bad_request(error: impl Into<String>, code: impl Into<String>) -> Self {
+        Self {
+            error: error.into(),
+            code: code.into(),
+            status: StatusCode::BAD_REQUEST,
+        }
+    }
+
+    /// Create a new ApiError with INTERNAL_SERVER_ERROR status
+    pub fn internal(error: impl Into<String>, code: impl Into<String>) -> Self {
+        Self {
+            error: error.into(),
+            code: code.into(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    /// Create a new ApiError with NOT_FOUND status
+    pub fn not_found(error: impl Into<String>, code: impl Into<String>) -> Self {
+        Self {
+            error: error.into(),
+            code: code.into(),
+            status: StatusCode::NOT_FOUND,
+        }
+    }
+
+    /// Create a new ApiError with UNAUTHORIZED status
+    pub fn unauthorized(error: impl Into<String>, code: impl Into<String>) -> Self {
+        Self {
+            error: error.into(),
+            code: code.into(),
+            status: StatusCode::UNAUTHORIZED,
+        }
+    }
+
+    /// Create a new ApiError with FORBIDDEN status
+    pub fn forbidden(error: impl Into<String>, code: impl Into<String>) -> Self {
+        Self {
+            error: error.into(),
+            code: code.into(),
+            status: StatusCode::FORBIDDEN,
+        }
+    }
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (StatusCode::BAD_REQUEST, Json(self)).into_response()
+        let status = self.status;
+        (status, Json(self)).into_response()
     }
 }
 
@@ -138,22 +191,36 @@ pub async fn list_servers(
 pub async fn get_server(
     Path(server_id): Path<String>,
     State(state): State<DashboardState>,
-) -> Result<Json<BackendServer>, ApiError> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let config = state.router_config.read().await;
     
-    config.servers.iter()
+    let server = config.servers.iter()
         .find(|s| s.id == server_id)
+        .ok_or_else(|| ApiError::not_found(
+            format!("Server '{}' not found", server_id),
+            "SERVER_NOT_FOUND"
+        ))?;
+    
+    // Create a temporary config with just this server to use the masking function
+    let temp_config = crate::simple_router::RouterConfig {
+        servers: vec![server.clone()],
+        timeout_ms: config.timeout_ms,
+        cache_tools: config.cache_tools,
+    };
+    
+    let masked_config = crate::server_loader::create_display_config(&temp_config);
+    let servers = masked_config["servers"].as_array()
+        .and_then(|arr| arr.first())
         .cloned()
-        .map(Json)
-        .ok_or_else(|| ApiError {
-            error: format!("Server '{}' not found", server_id),
-            code: "SERVER_NOT_FOUND".to_string(),
-        })
+        .unwrap_or_else(|| serde_json::json!({}));
+    
+    Ok(Json(servers))
 }
 
 /// Add a new server
 pub async fn add_server(
     State(state): State<DashboardState>,
+    session: Option<Extension<Session>>,
     Json(request): Json<ServerRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     info!("Adding new server: {}", request.id);
@@ -179,48 +246,121 @@ pub async fn add_server(
     
     // Validate the server configuration
     if let Err(e) = crate::simple_router::validate_server_config(&server).await {
-        return Err(ApiError {
-            error: format!("Invalid server configuration: {}", e),
-            code: "INVALID_CONFIG".to_string(),
-        });
+        return Err(ApiError::bad_request(
+            format!("Invalid server configuration: {}", e),
+            "INVALID_CONFIG"
+        ));
     }
     
-    // Add to config
-    let mut config = state.router_config.write().await;
-    
-    // Check if ID already exists
-    if config.servers.iter().any(|s| s.id == server.id) {
-        return Err(ApiError {
-            error: format!("Server with ID '{}' already exists", server.id),
-            code: "DUPLICATE_ID".to_string(),
-        });
-    }
-    
-    config.servers.push(server.clone());
-    
-    // Spawn the backend
-    if let Err(e) = state.backend_manager.spawn_backend(server).await {
-        error!("Failed to spawn backend: {}", e);
-        // Remove from config on failure
-        config.servers.retain(|s| s.id != request.id);
-        return Err(ApiError {
-            error: format!("Failed to start server: {}", e),
-            code: "SPAWN_FAILED".to_string(),
-        });
-    }
-    
-    // Persist config to file if requested
-    if request.persist_to_config {
-        if let Err(e) = save_config_to_file(&state).await {
-            error!("Failed to save configuration: {}", e);
-            // Continue anyway - server is running
+    // Check if user is authenticated
+    if let Some(Extension(session)) = session {
+        // User is authenticated - save to database
+        let user_id = session.user_id;
+        info!("Saving server to database for user {}", user_id);
+        
+        // Prefix server ID with user context
+        let mut user_server = server.clone();
+        user_server.id = format!("user_{}_{}", user_id, server.id);
+        
+        // Apply stricter sandboxing for user servers
+        if matches!(user_server.sandbox.strategy, crate::sandbox::SandboxStrategy::None) {
+            user_server.sandbox.strategy = crate::sandbox::SandboxStrategy::Firejail {
+                profile: Some("default".to_string()),
+                whitelist_paths: vec![
+                    format!("/tmp/jauauth-user-{}-{}", user_id, server.id)
+                ],
+                read_only_paths: vec![],
+                net: false,
+                no_root: true,
+                netfilter: None,
+            };
         }
+        
+        // Create ServerStore with user's encryption key
+        let master_key = state.auth_context.config.jwt_secret.as_bytes();
+        let encryption_key = derive_key(master_key, &format!("user-{}", user_id))
+            .map_err(|e| ApiError::internal(
+                format!("Failed to derive encryption key: {}", e),
+                "ENCRYPTION_ERROR"
+            ))?;
+        let server_store = ServerStore::new(state.auth_context.db.clone(), encryption_key);
+        
+        // Save to database
+        server_store.add_server(user_id, &user_server).await
+            .map_err(|e| ApiError::internal(
+                format!("Failed to save server to database: {}", e),
+                "DB_SAVE_FAILED"
+            ))?;
+        
+        // Spawn the backend
+        if let Err(e) = state.backend_manager.spawn_backend(user_server.clone()).await {
+            error!("Failed to spawn backend: {}", e);
+            // TODO: Remove from database on failure
+            return Err(ApiError::internal(
+                format!("Failed to start server: {}", e),
+                "SPAWN_FAILED"
+            ));
+        }
+        
+        Ok(Json(serde_json::json!({
+            "success": true,
+            "server_id": user_server.id,
+            "source": "database",
+            "message": "Server saved to your personal configuration"
+        })))
+    } else {
+        // No authentication - save to JSON config (admin mode)
+        info!("No session found, saving to JSON config");
+        
+        // Use a block to ensure the write lock is dropped before saving
+        {
+            let mut config = state.router_config.write().await;
+            
+            // Check if ID already exists
+            if config.servers.iter().any(|s| s.id == server.id) {
+                return Err(ApiError {
+                    error: format!("Server with ID '{}' already exists", server.id),
+                    code: "DUPLICATE_ID".to_string(),
+                    status: StatusCode::CONFLICT,
+                });
+            }
+            
+            config.servers.push(server.clone());
+        } // Write lock dropped here
+        
+        // Spawn the backend
+        if let Err(e) = state.backend_manager.spawn_backend(server.clone()).await {
+            error!("Failed to spawn backend: {}", e);
+            // Remove from config on failure
+            let mut config = state.router_config.write().await;
+            config.servers.retain(|s| s.id != request.id);
+            return Err(ApiError::internal(
+                format!("Failed to start server: {}", e),
+                "SPAWN_FAILED"
+            ));
+        }
+        
+        // Persist config to file if requested
+        if request.persist_to_config {
+            match save_config_to_file(&state).await {
+                Ok(_) => info!("Successfully saved configuration to file"),
+                Err(e) => {
+                    error!("Failed to save configuration: {}", e);
+                    error!("Config path: {:?}", state.config_path);
+                    // Continue anyway - server is running
+                }
+            }
+        } else {
+            info!("persist_to_config is false, not saving to file");
+        }
+        
+        Ok(Json(serde_json::json!({
+            "success": true,
+            "server_id": request.id,
+            "source": "json",
+            "message": "Server saved to system configuration"
+        })))
     }
-    
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "server_id": request.id
-    })))
 }
 
 /// Update an existing server
@@ -234,20 +374,7 @@ pub async fn update_server(
     // For now, we'll remove and re-add
     // TODO: Implement proper update with graceful restart
     
-    let mut config = state.router_config.write().await;
-    
-    // Find and remove old server
-    let old_pos = config.servers.iter().position(|s| s.id == server_id)
-        .ok_or_else(|| ApiError {
-            error: format!("Server '{}' not found", server_id),
-            code: "SERVER_NOT_FOUND".to_string(),
-        })?;
-    
-    config.servers.remove(old_pos);
-    
-    // TODO: Shutdown old backend
-    
-    // Add updated server
+    // Build updated server first
     let server = BackendServer {
         id: request.id.clone(),
         name: request.name,
@@ -266,15 +393,32 @@ pub async fn update_server(
         tls: None,
     };
     
-    config.servers.push(server.clone());
+    // Update config in a block to release lock before saving
+    {
+        let mut config = state.router_config.write().await;
+        
+        // Find and remove old server
+        let old_pos = config.servers.iter().position(|s| s.id == server_id)
+            .ok_or_else(|| ApiError::not_found(
+                format!("Server '{}' not found", server_id),
+                "SERVER_NOT_FOUND"
+            ))?;
+        
+        config.servers.remove(old_pos);
+        
+        // TODO: Shutdown old backend
+        
+        // Add updated server
+        config.servers.push(server.clone());
+    } // Write lock dropped here
     
     // Spawn new backend
     if let Err(e) = state.backend_manager.spawn_backend(server).await {
         error!("Failed to spawn updated backend: {}", e);
-        return Err(ApiError {
-            error: format!("Failed to restart server: {}", e),
-            code: "SPAWN_FAILED".to_string(),
-        });
+        return Err(ApiError::internal(
+            format!("Failed to restart server: {}", e),
+            "SPAWN_FAILED"
+        ));
     }
     
     // Persist config to file if requested
@@ -302,36 +446,93 @@ pub struct RemoveServerRequest {
 pub async fn remove_server(
     Path(server_id): Path<String>,
     State(state): State<DashboardState>,
+    session: Option<Extension<Session>>,
     Json(request): Json<Option<RemoveServerRequest>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     info!("Removing server: {}", server_id);
     
-    let mut config = state.router_config.write().await;
-    
-    // Find and remove server
-    let pos = config.servers.iter().position(|s| s.id == server_id)
-        .ok_or_else(|| ApiError {
-            error: format!("Server '{}' not found", server_id),
-            code: "SERVER_NOT_FOUND".to_string(),
-        })?;
-    
-    config.servers.remove(pos);
-    
-    // TODO: Shutdown backend process
-    
-    // Persist config to file if requested
-    let request = request.unwrap_or(RemoveServerRequest { persist_to_config: true });
-    if request.persist_to_config {
-        if let Err(e) = save_config_to_file(&state).await {
-            error!("Failed to save configuration: {}", e);
-            // Continue anyway - server is removed from memory
+    // Check if this is a user server (has user prefix)
+    if server_id.starts_with("user_") {
+        // This is a user server - need to remove from database
+        if let Some(Extension(session)) = session {
+            let user_id = session.user_id;
+            
+            // Extract the original server ID (remove user_{id}_ prefix)
+            let prefix = format!("user_{}_", user_id);
+            if !server_id.starts_with(&prefix) {
+                return Err(ApiError::forbidden(
+                    "You can only remove your own servers",
+                    "FORBIDDEN"
+                ));
+            }
+            
+            // Create ServerStore with user's encryption key
+            let master_key = state.auth_context.config.jwt_secret.as_bytes();
+            let encryption_key = derive_key(master_key, &format!("user-{}", user_id))
+                .map_err(|e| ApiError::internal(
+                    format!("Failed to derive encryption key: {}", e),
+                    "ENCRYPTION_ERROR"
+                ))?;
+            let server_store = ServerStore::new(state.auth_context.db.clone(), encryption_key);
+            
+            // Remove from database
+            server_store.delete_server(user_id, &server_id).await
+                .map_err(|e| ApiError::internal(
+                    format!("Failed to remove server from database: {}", e),
+                    "DB_REMOVE_FAILED"
+                ))?;
+            
+            // Also remove from in-memory config
+            let mut config = state.router_config.write().await;
+            config.servers.retain(|s| s.id != server_id);
+            
+            // TODO: Shutdown backend process
+            
+            Ok(Json(serde_json::json!({
+                "success": true,
+                "server_id": server_id,
+                "source": "database",
+                "message": "Server removed from your personal configuration"
+            })))
+        } else {
+            return Err(ApiError::unauthorized(
+                "Authentication required to remove user servers",
+                "UNAUTHORIZED"
+            ));
         }
+    } else {
+        // System server - only remove from JSON config (admin mode)
+        {
+            let mut config = state.router_config.write().await;
+            
+            // Find and remove server
+            let pos = config.servers.iter().position(|s| s.id == server_id)
+                .ok_or_else(|| ApiError::not_found(
+                    format!("Server '{}' not found", server_id),
+                    "SERVER_NOT_FOUND"
+                ))?;
+            
+            config.servers.remove(pos);
+        } // Write lock dropped here
+        
+        // TODO: Shutdown backend process
+        
+        // Persist config to file if requested
+        let request = request.unwrap_or(RemoveServerRequest { persist_to_config: true });
+        if request.persist_to_config {
+            if let Err(e) = save_config_to_file(&state).await {
+                error!("Failed to save configuration: {}", e);
+                // Continue anyway - server is removed from memory
+            }
+        }
+        
+        Ok(Json(serde_json::json!({
+            "success": true,
+            "server_id": server_id,
+            "source": "json",
+            "message": "Server removed from system configuration"
+        })))
     }
-    
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "server_id": server_id
-    })))
 }
 
 /// Get server logs (last N lines)
@@ -366,10 +567,10 @@ pub async fn test_tool(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     match state.backend_manager.route_tool_call(&request.tool_name, request.arguments).await {
         Ok(result) => Ok(Json(result)),
-        Err(e) => Err(ApiError {
-            error: format!("Tool call failed: {}", e),
-            code: "TOOL_CALL_FAILED".to_string(),
-        }),
+        Err(e) => Err(ApiError::internal(
+            format!("Tool call failed: {}", e),
+            "TOOL_CALL_FAILED"
+        )),
     }
 }
 
@@ -413,6 +614,7 @@ pub async fn update_auth_settings(
     Err(ApiError {
         error: "Auth settings update not yet implemented".to_string(),
         code: "NOT_IMPLEMENTED".to_string(),
+        status: StatusCode::NOT_IMPLEMENTED,
     })
 }
 
@@ -459,10 +661,84 @@ async fn save_config_to_file(state: &DashboardState) -> Result<(), Box<dyn std::
     if let Some(config_path) = &state.config_path {
         let config = state.router_config.read().await;
         let json = serde_json::to_string_pretty(&*config)?;
+        
+        // Log the actual content being saved for debugging
+        info!("Saving {} servers to config file", config.servers.len());
+        for server in &config.servers {
+            info!("  - {} ({})", server.name, server.id);
+        }
+        
         fs::write(config_path, json).await?;
-        info!("Saved configuration to {:?}", config_path);
+        info!("Successfully saved configuration to {:?}", config_path);
+        
+        // Verify the file was written
+        if let Ok(contents) = fs::read_to_string(config_path).await {
+            if let Ok(verify_config) = serde_json::from_str::<RouterConfig>(&contents) {
+                info!("Verified: config file now contains {} servers", verify_config.servers.len());
+            }
+        }
     } else {
-        info!("No config path specified, skipping save");
+        error!("No config path specified, cannot save configuration!");
     }
     Ok(())
+}
+
+/// Install NPM package endpoint
+#[derive(Debug, Deserialize)]
+pub struct InstallNpmPackageRequest {
+    pub package: String,
+    pub global: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StatusResponse {
+    pub status: String,
+    pub message: Option<String>,
+}
+
+pub async fn install_npm_package(
+    State(_state): State<DashboardState>,
+    Json(request): Json<InstallNpmPackageRequest>,
+) -> Result<Json<StatusResponse>, ApiError> {
+    // Validate package name to prevent command injection
+    if !request.package.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '@' || c == '/' || c == '.') {
+        return Err(ApiError::bad_request(
+            "Invalid package name",
+            "INVALID_PACKAGE"
+        ));
+    }
+
+    info!("Installing NPM package: {} (global: {})", request.package, request.global);
+
+    let args = if request.global {
+        vec!["install", "-g", &request.package]
+    } else {
+        vec!["install", &request.package]
+    };
+
+    let output = tokio::process::Command::new("npm")
+        .args(&args)
+        .output()
+        .await
+        .map_err(|e| ApiError::internal(
+            format!("Failed to run npm: {}", e),
+            "NPM_ERROR"
+        ))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        error!("npm install failed: {}", stderr);
+        return Err(ApiError::internal(
+            format!("npm install failed: {}", stderr),
+            "INSTALL_FAILED"
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    info!("npm install successful: {}", stdout);
+
+    Ok(Json(StatusResponse {
+        status: "success".to_string(),
+        message: Some(format!("Successfully installed {}", request.package)),
+    }))
 }

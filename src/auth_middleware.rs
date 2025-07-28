@@ -14,7 +14,7 @@ use crate::dashboard::DashboardState;
 pub async fn require_auth(
     State(state): State<DashboardState>,
     auth_header: Option<TypedHeader<Authorization<Bearer>>>,
-    request: Request,
+    mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
     // Extract token from Authorization header
@@ -33,7 +33,9 @@ pub async fn require_auth(
         return Err(StatusCode::UNAUTHORIZED);
     }
     
-    // TODO: Add session to request extensions for use in handlers
+    // Add session to request extensions for use in handlers
+    drop(session_manager); // Release the lock before modifying request
+    request.extensions_mut().insert(session);
     
     Ok(next.run(request).await)
 }

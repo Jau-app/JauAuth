@@ -1,0 +1,106 @@
+{
+  "servers": [
+    {
+      "id": "local-jaumemory",
+      "name": "JauMemory (Local)",
+      "command": "node",
+      "args": ["/mnt/r/devR/AI/Jau/JauMemory/mcp-server/dist/index.js"],
+      "env": {
+        "GRPC_SERVER_ADDRESS": "localhost:50051"
+      },
+      "requires_auth": false,
+      "allowed_users": [],
+      "sandbox": {
+        "strategy": "none",
+        "env_passthrough": ["HOME", "USER", "PATH", "NODE_PATH"]
+      }
+    },
+    {
+      "id": "remote-discourse",
+      "type": "remote",
+      "name": "Discourse MCP Server (Remote)",
+      "url": "https://discourse-mcp.example.com/sse",
+      "transport": "sse",
+      "auth": {
+        "type": "bearer",
+        "token": "${DISCOURSE_API_TOKEN}"
+      },
+      "timeout_ms": 30000,
+      "retry": {
+        "max_attempts": 3,
+        "initial_backoff_ms": 1000,
+        "max_backoff_ms": 10000
+      },
+      "tls": {
+        "verify_cert": true
+      }
+    },
+    {
+      "id": "remote-github-oauth",
+      "type": "remote", 
+      "name": "GitHub MCP with OAuth",
+      "url": "https://github-mcp.workers.dev",
+      "transport": "sse",
+      "auth": {
+        "type": "oauth",
+        "provider": "github",
+        "client_id": "${GITHUB_CLIENT_ID}",
+        "client_secret": "${GITHUB_CLIENT_SECRET}",
+        "scopes": ["repo", "user:email"]
+      },
+      "timeout_ms": 45000
+    },
+    {
+      "id": "remote-custom-headers",
+      "type": "remote",
+      "name": "Custom API with Headers",
+      "url": "https://api.govbot.com/mcp",
+      "transport": "sse",
+      "auth": {
+        "type": "custom",
+        "headers": {
+          "X-API-Key": "${GOVBOT_API_KEY}",
+          "X-Client-ID": "jauauth-router",
+          "X-Project": "near-governance"
+        }
+      },
+      "retry": {
+        "max_attempts": 5,
+        "initial_backoff_ms": 2000
+      }
+    },
+    {
+      "id": "remote-basic-auth",
+      "type": "remote",
+      "name": "Legacy System with Basic Auth",
+      "url": "https://legacy.example.com/mcp",
+      "auth": {
+        "type": "basic",
+        "username": "${LEGACY_USER}",
+        "password": "${LEGACY_PASS}"
+      },
+      "tls": {
+        "verify_cert": true,
+        "ca_cert": "/path/to/custom-ca.pem"
+      }
+    },
+    {
+      "id": "remote-mtls",
+      "type": "remote",
+      "name": "High Security mTLS Server",
+      "url": "https://secure.example.com/mcp",
+      "auth": {
+        "type": "none"
+      },
+      "tls": {
+        "verify_cert": true,
+        "client_cert": "/path/to/client-cert.pem",
+        "client_key": "/path/to/client-key.pem",
+        "ca_cert": "/path/to/ca-cert.pem"
+      },
+      "timeout_ms": 60000
+    }
+  ],
+  "timeout_ms": 30000,
+  "cache_tools": true
+}

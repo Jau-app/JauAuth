@@ -1,7 +1,5 @@
 use async_trait::async_trait;
 use serde_json::Value;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use crate::mcp_types::{InitializeResult, ListToolsResult};
 use crate::Error;

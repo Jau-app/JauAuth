@@ -10,9 +10,9 @@
 
 ## The Problem: MCP Server Sprawl and Security Nightmares
 
-When we started building AI tools with Claude Desktop, we quickly ran into a frustrating problem. Every new capability meant connecting another MCP server - one for file access, another for memory, one more for notifications. Soon, our Claude configuration was a tangled mess of server connections, each running with full system access. 
+When we started building AI tools with Claude Desktop, we quickly ran into a frustrating problem. Every new capability meant connecting another MCP server - one for file access, another for memory, one more for notifications. Soon, our Claude configuration was a tangled mess of server connections, each running with full system access.
 
-It felt wrong. Here we were, giving AI assistants powerful tools, but with no way to manage or secure them properly. Each server was a potential security risk, running unsandboxed with whatever permissions it wanted. 
+It felt wrong. Here we were, giving AI assistants powerful tools, but with no way to manage or secure them properly. Each server was a potential security risk, running unsandboxed with whatever permissions it wanted.
 
 Then came the wake-up call. The recent [critical vulnerability in Anthropic's MCP Inspector (CVE-2025-49596)](https://thehackernews.com/2025/07/critical-vulnerability-in-anthropics.html?m=1) exposed how dangerous this approach really is. With a CVSS score of 9.4/10, attackers could gain complete access to developer machines simply by tricking them into visiting a malicious website. The vulnerability chained browser flaws with MCP's lack of authentication, turning development tools into backdoors. As security researchers noted, this was "one of the first critical RCEs in Anthropic's MCP ecosystem, exposing a new class of browser-based attacks against AI developer tools."
 
@@ -22,7 +22,7 @@ The security community's message was clear: the MCP ecosystem desperately needed
 
 ## Our Solution: One Router to Rule Them All
 
-JauAuth transforms the chaos of multiple MCP connections into elegant simplicity. Instead of connecting Claude to a dozen different servers, you connect to JauAuth once. It acts as a secure gateway, managing all your MCP servers behind the scenes. 
+JauAuth transforms the chaos of multiple MCP connections into elegant simplicity. Instead of connecting Claude to a dozen different servers, you connect to JauAuth once. It acts as a secure gateway, managing all your MCP servers behind the scenes.
 
 We built it with security as the foundation, not an afterthought. Every MCP server runs in its own sandbox - whether that's Docker, Firejail, or another isolation technology. No more servers listening on 0.0.0.0. No more unauthenticated endpoints. No more hoping developers configured everything correctly. JauAuth enforces security by default:
 
@@ -60,7 +60,9 @@ Managing multiple MCP servers can be complex and insecure. JauAuth solves this b
 ### Security Features
 - 🔒 **Sandboxed Execution**: Isolate MCP servers with configurable security strategies
 - 🛡️ **Command Allowlisting**: Control which commands servers can execute
-- 🔑 **Environment Variable Filtering**: Prevent sensitive data exposure
+- 🔑 **Secure Token Storage**: Store API keys in environment variables with automatic substitution
+- 🎭 **Token Masking**: Sensitive values displayed as `hf_...` in dashboard
+- 💾 **Persistent Configuration**: Servers save to JSON config and reload on startup
 - 📝 **Audit Logging**: Track all tool calls and server activities
 - 🚦 **Rate Limiting**: Protect against abuse
 - 🔐 **CSRF Protection**: Secure web endpoints
@@ -122,6 +124,37 @@ cargo build --release
   "cache_tools": true
 }
 ```
+
+### 🔐 Secure Token Handling
+
+JauAuth provides secure storage for API keys and tokens using environment variable substitution:
+
+```json
+{
+  "id": "hf-mcp-server",
+  "name": "HuggingFace MCP Server",
+  "command": "npx",
+  "args": [
+    "mcp-remote",
+    "https://huggingface.co/mcp",
+    "--header",
+    "Authorization: Bearer $HF_TOKEN"  // Reference env variable
+  ],
+  "env": {
+    "HF_TOKEN": "hf_yourActualTokenHere"  // Secure storage
+  },
+  "sandbox": {
+    "strategy": "none",
+    "env_passthrough": ["HOME", "USER", "PATH", "HF_TOKEN"]
+  }
+}
+```
+
+**Security Features:**
+- Tokens stored in `env` section are automatically masked in the dashboard
+- Use `$VARIABLE_NAME` syntax in args to reference environment variables
+- All environment values display as `hf_...` (first 4 and last 4 characters)
+- Actual tokens never appear in logs or UI displays
 
 5. **Start the combined server:**
 ```bash
@@ -298,6 +331,15 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+### Repository Structure
+- **src/** - Rust source code
+- **mcp-server/** - TypeScript MCP server
+- **web/** - Dashboard frontend
+- **docs/** - Public documentation
+- **scripts/** - Essential scripts (install tools, setup)
+- **tests/** - Test suite
+- **.dev/** - Development files (gitignored)
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -328,7 +370,7 @@ This project is licensed under the Business Source License 1.1 with Additional U
 
 **Free to use for:**
 - 🏠 Personal, non-commercial use
-- 🏢 Companies with fewer than 5 employees  
+- 🏢 Companies with fewer than 5 employees
 - 🎓 Educational and research purposes
 
 **Commercial License Required for:**

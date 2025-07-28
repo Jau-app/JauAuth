@@ -38,8 +38,10 @@ pub struct JsonRpcError {
 /// MCP Initialize result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeResult {
+    #[serde(rename = "protocolVersion")]
     pub protocol_version: String,
     pub capabilities: ServerCapabilities,
+    #[serde(rename = "serverInfo")]
     pub server_info: ServerInfo,
 }
 

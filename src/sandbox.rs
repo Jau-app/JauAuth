@@ -48,6 +48,8 @@ pub enum SandboxStrategy {
         net: bool,
         /// Disable root user
         no_root: bool,
+        /// Network filter file path
+        netfilter: Option<String>,
     },
     
     /// Use bubblewrap (Linux only, used by Flatpak)
@@ -79,7 +81,7 @@ pub enum SandboxStrategy {
 
 impl Default for SandboxStrategy {
     fn default() -> Self {
-        // Default to Firejail on Linux, no sandbox on other platforms
+        // Default to Firejail on Linux, Docker elsewhere if available
         #[cfg(target_os = "linux")]
         {
             SandboxStrategy::Firejail {
@@ -88,12 +90,22 @@ impl Default for SandboxStrategy {
                 read_only_paths: vec![],
                 net: true, // MCP servers often need network
                 no_root: true,
+                netfilter: None,
             }
         }
         
         #[cfg(not(target_os = "linux"))]
         {
-            SandboxStrategy::None
+            // On non-Linux, try Docker as default since it's cross-platform
+            // User can still explicitly choose None if needed
+            SandboxStrategy::Docker {
+                image: Some("node:18-alpine".to_string()),
+                memory_limit: Some("512m".to_string()),
+                cpu_limit: Some("0.5".to_string()),
+                extra_flags: vec![],
+                network: true,
+                mounts: vec![],
+            }
         }
     }
 }
@@ -187,6 +199,7 @@ pub async fn check_sandbox_availability() -> Vec<SandboxStrategy> {
             read_only_paths: vec![],
             net: true,
             no_root: true,
+            netfilter: None,
         });
     }
     
@@ -213,6 +226,50 @@ fn expand_env_var(value: &str) -> String {
     }
 }
 
+/// Expand environment variables in command arguments
+/// Supports $VAR_NAME syntax and looks up in the provided env map first
+fn expand_arg_with_env(arg: &str, env_map: &HashMap<String, String>) -> String {
+    // Check if the arg contains $VARIABLE syntax
+    if arg.contains('$') {
+        let mut result = arg.to_string();
+        
+        // Simple pattern matching for $VARIABLE (not using regex to avoid dependency)
+        let mut pos = 0;
+        while let Some(dollar_pos) = result[pos..].find('$') {
+            let start = pos + dollar_pos;
+            let var_start = start + 1;
+            
+            // Find the end of the variable name
+            let var_end = result[var_start..]
+                .find(|c: char| !c.is_alphanumeric() && c != '_')
+                .map(|i| var_start + i)
+                .unwrap_or(result.len());
+            
+            if var_end > var_start {
+                let var_name = &result[var_start..var_end];
+                
+                // First check the provided env map
+                if let Some(value) = env_map.get(var_name) {
+                    result.replace_range(start..var_end, value);
+                    pos = start + value.len();
+                } else if let Ok(value) = std::env::var(var_name) {
+                    // Fall back to system environment
+                    result.replace_range(start..var_end, &value);
+                    pos = start + value.len();
+                } else {
+                    // Variable not found, skip past it
+                    pos = var_end;
+                }
+            } else {
+                pos = start + 1;
+            }
+        }
+        result
+    } else {
+        arg.to_string()
+    }
+}
+
 /// Build the sandbox command based on the strategy
 pub fn build_sandbox_command(
     sandbox: &SandboxConfig,
@@ -224,7 +281,12 @@ pub fn build_sandbox_command(
         SandboxStrategy::None => {
             // No sandboxing - direct execution
             let mut cmd = Command::new(server_cmd);
-            cmd.args(server_args);
+            
+            // Substitute environment variables in args
+            let expanded_args: Vec<String> = server_args.iter()
+                .map(|arg| expand_arg_with_env(arg, server_env))
+                .collect();
+            cmd.args(&expanded_args);
             
             // Set working directory if specified
             if let Some(work_dir) = &sandbox.work_dir {
@@ -285,12 +347,17 @@ pub fn build_sandbox_command(
             let image_name = image.as_ref().map(|s| s.as_str()).unwrap_or("node:18-alpine");
             cmd.arg(image_name);
             cmd.arg(server_cmd);
-            cmd.args(server_args);
+            
+            // Substitute environment variables in args
+            let expanded_args: Vec<String> = server_args.iter()
+                .map(|arg| expand_arg_with_env(arg, server_env))
+                .collect();
+            cmd.args(&expanded_args);
             
             Ok(cmd)
         }
         
-        SandboxStrategy::Firejail { profile, whitelist_paths, read_only_paths, net, no_root } => {
+        SandboxStrategy::Firejail { profile, whitelist_paths, read_only_paths, net, no_root, netfilter } => {
             let mut cmd = Command::new("firejail");
             
             // Basic security flags
@@ -327,17 +394,27 @@ pub fn build_sandbox_command(
                 cmd.args(&["--read-only", path]);
             }
             
-            // Private directories
-            cmd.args(&["--private-tmp", "--private-dev"]);
+            // Private directories and additional security
+            cmd.args(&["--private-tmp", "--private-dev", "--nodbus", "--machine-id", "--nogroups", "--disable-mnt"]);
+            
+            // Network filter if specified
+            if let Some(nf) = netfilter {
+                cmd.args(&["--netfilter", nf]);
+            }
             
             // The actual command
             cmd.arg("--");
             cmd.arg(server_cmd);
-            cmd.args(server_args);
+            
+            // Substitute environment variables in args
+            let expanded_args: Vec<String> = server_args.iter()
+                .map(|arg| expand_arg_with_env(arg, server_env))
+                .collect();
+            cmd.args(&expanded_args);
             
             // Environment
             for (key, value) in server_env {
-                cmd.env(key, value);
+                cmd.env(key, expand_env_var(value));
             }
             
             Ok(cmd)
@@ -376,7 +453,17 @@ pub fn build_sandbox_command(
             // Command
             cmd.arg("--");
             cmd.arg(server_cmd);
-            cmd.args(server_args);
+            
+            // Substitute environment variables in args
+            let expanded_args: Vec<String> = server_args.iter()
+                .map(|arg| expand_arg_with_env(arg, server_env))
+                .collect();
+            cmd.args(&expanded_args);
+            
+            // Environment variables
+            for (key, value) in server_env {
+                cmd.env(key, expand_env_var(value));
+            }
             
             Ok(cmd)
         }
@@ -420,6 +507,7 @@ pub async fn detect_available_strategies() -> Vec<SandboxStrategy> {
                 read_only_paths: vec![],
                 net: true,
                 no_root: true,
+                netfilter: None,
             });
         }
         

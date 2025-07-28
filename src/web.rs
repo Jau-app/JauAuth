@@ -12,6 +12,10 @@ use tower_http::limit::RequestBodyLimitLayer;
 use crate::dashboard::DashboardState;
 use crate::security::{security_headers, security_middleware};
 use crate::rate_limit::{rate_limit_middleware, presets};
+// require_auth is imported for future use when authentication is fully integrated
+// Currently only optional_auth is used for certain dashboard routes
+#[allow(unused_imports)]
+use crate::auth_middleware::{require_auth, optional_auth};
 
 pub fn create_router(dashboard_state: DashboardState) -> Router {
     // Configure CORS - restrict in production
@@ -40,6 +44,7 @@ pub fn create_router(dashboard_state: DashboardState) -> Router {
             .precompressed_gzip()
             .precompressed_br())
         .route_service("/", ServeFile::new("web/dist/index.html"))
+        .route_service("/tools.html", ServeFile::new("web/dist/tools.html"))
         
         // Auth API routes (public)
         .route("/api/register", post(register_handler))
@@ -52,13 +57,15 @@ pub fn create_router(dashboard_state: DashboardState) -> Router {
         .route("/api/webauthn/register", post(webauthn_register_handler))
         .route("/api/webauthn/verify", post(webauthn_verify_handler))
         
-        // Dashboard API routes (all protected)
+        // Dashboard API routes - add_server uses optional auth, others don't require auth yet
         .route("/api/dashboard/overview", get(crate::dashboard::get_overview))
         .route("/api/dashboard/servers", get(crate::dashboard::list_servers))
-        .route("/api/dashboard/servers", post(crate::dashboard::add_server))
+        .route("/api/dashboard/servers", post(crate::dashboard::add_server)
+            .layer(middleware::from_fn_with_state(dashboard_state.clone(), optional_auth)))
         .route("/api/dashboard/servers/{id}", get(crate::dashboard::get_server))
         .route("/api/dashboard/servers/{id}", put(crate::dashboard::update_server))
-        .route("/api/dashboard/servers/{id}", delete(crate::dashboard::remove_server))
+        .route("/api/dashboard/servers/{id}", delete(crate::dashboard::remove_server)
+            .layer(middleware::from_fn_with_state(dashboard_state.clone(), optional_auth)))
         .route("/api/dashboard/servers/{id}/logs", get(crate::dashboard::get_server_logs))
         .route("/api/dashboard/tools", get(crate::dashboard::list_tools))
         .route("/api/dashboard/tools/test", post(crate::dashboard::test_tool))
@@ -66,6 +73,7 @@ pub fn create_router(dashboard_state: DashboardState) -> Router {
         .route("/api/dashboard/auth/settings", put(crate::dashboard::update_auth_settings))
         .route("/api/dashboard/mcp/config", get(crate::dashboard::get_mcp_config))
         .route("/api/dashboard/mcp/config", put(crate::dashboard::update_mcp_config))
+        .route("/api/dashboard/install-npm-package", post(crate::dashboard::install_npm_package))
         // Temporary stub routes for missing endpoints
         .route("/api/dashboard/user/profile", get(user_profile_stub))
         .route("/api/dashboard/sessions", get(sessions_stub))

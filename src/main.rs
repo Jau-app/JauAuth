@@ -1,6 +1,6 @@
 //! JauAuth - MCP Router and Authentication System
 
-use jau_auth::{AuthConfig, AuthContext, simple_router::{SimpleRouter, load_config}};
+use jau_auth::{AuthConfig, AuthContext, simple_router::SimpleRouter, server_loader};
 use tracing::{info, error};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -97,15 +97,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn run_router(config_path: PathBuf, enable_auth: bool) -> Result<(), Box<dyn std::error::Error>> {
-    // Load router configuration
-    let router_config = load_config(config_path.to_str().unwrap()).await
+    // Load auth configuration to get database pool
+    let auth_config = AuthConfig::from_env()
         .unwrap_or_else(|e| {
-            error!("Failed to load router config: {}. Using default.", e);
-            error!("Run 'jau-auth init' to generate an example configuration.");
-            Default::default()
+            error!("Failed to load config: {}", e);
+            info!("Using default configuration");
+            AuthConfig::default()
         });
     
-    info!("Loaded {} backend servers", router_config.servers.len());
+    // Initialize auth context
+    let auth_context = AuthContext::new(auth_config.clone()).await?;
+    
+    // Get master key from JWT secret
+    let master_key = auth_config.jwt_secret.as_bytes();
+    
+    // Load router configuration from both JSON and database
+    let router_config = server_loader::load_all_servers(
+        config_path.to_str().unwrap(),
+        auth_context.db.clone(),
+        master_key,
+        None, // No specific user for system-wide loading
+    ).await
+    .unwrap_or_else(|e| {
+        error!("Failed to load server configurations: {}", e);
+        error!("Run 'jau-auth init' to generate an example configuration.");
+        Default::default()
+    });
+    
+    info!("Loaded {} backend servers (JSON + Database)", router_config.servers.len());
     
     // Create the simple router
     let router = SimpleRouter::new(router_config);
@@ -145,9 +164,17 @@ async fn run_web_portal(port: u16, router_config_path: Option<PathBuf>) -> Resul
     let auth_context = AuthContext::new(config.clone()).await?;
     info!("Database initialized");
     
-    // Load router configuration if provided
+    // Get master key from JWT secret
+    let master_key = config.jwt_secret.as_bytes();
+    
+    // Load router configuration from both JSON and database if provided
     let router_config = if let Some(ref path) = router_config_path {
-        load_config(path.to_str().unwrap()).await
+        server_loader::load_all_servers(
+            path.to_str().unwrap(),
+            auth_context.db.clone(),
+            master_key,
+            None, // No specific user for system-wide loading
+        ).await
             .unwrap_or_else(|e| {
                 error!("Failed to load router config: {}. Using default.", e);
                 Default::default()
@@ -159,6 +186,19 @@ async fn run_web_portal(port: u16, router_config_path: Option<PathBuf>) -> Resul
     
     // Create backend manager
     let backend_manager = Arc::new(BackendManager::new());
+    
+    // Spawn all configured backend servers
+    info!("Spawning backend servers...");
+    for server in &router_config.servers {
+        match backend_manager.spawn_backend(server.clone()).await {
+            Ok(_) => info!("✅ Spawned backend: {} ({})", server.name, server.id),
+            Err(e) => error!("❌ Failed to spawn backend {}: {}", server.id, e),
+        }
+    }
+    
+    let status = backend_manager.get_status().await;
+    let healthy_count = status.values().filter(|&&h| h).count();
+    info!("Backend initialization complete: {}/{} healthy", healthy_count, status.len());
     
     // Create dashboard state
     let dashboard_state = DashboardState {
@@ -192,23 +232,7 @@ async fn run_combined(config_path: PathBuf, port: u16, enable_auth: bool) -> Res
     
     info!("Starting combined mode with router and web dashboard...");
     
-    // Load router configuration
-    let router_config = load_config(config_path.to_str().unwrap()).await
-        .unwrap_or_else(|e| {
-            error!("Failed to load router config: {}. Using default.", e);
-            error!("Run 'jau-auth init' to generate an example configuration.");
-            Default::default()
-        });
-    
-    info!("Loaded {} backend servers", router_config.servers.len());
-    
-    // Create shared backend manager
-    let backend_manager = Arc::new(BackendManager::new());
-    
-    // Create shared router config
-    let shared_router_config = Arc::new(RwLock::new(router_config.clone()));
-    
-    // Load auth configuration
+    // Load auth configuration first to get database pool
     let mut auth_config = AuthConfig::from_env()
         .unwrap_or_else(|e| {
             error!("Failed to load config: {}", e);
@@ -221,6 +245,30 @@ async fn run_combined(config_path: PathBuf, port: u16, enable_auth: bool) -> Res
     // Initialize auth context
     let auth_context = AuthContext::new(auth_config.clone()).await?;
     info!("Database initialized");
+    
+    // Get master key from JWT secret
+    let master_key = auth_config.jwt_secret.as_bytes();
+    
+    // Load router configuration from both JSON and database
+    let router_config = server_loader::load_all_servers(
+        config_path.to_str().unwrap(),
+        auth_context.db.clone(),
+        master_key,
+        None, // No specific user for system-wide loading
+    ).await
+    .unwrap_or_else(|e| {
+        error!("Failed to load server configurations: {}", e);
+        error!("Run 'jau-auth init' to generate an example configuration.");
+        Default::default()
+    });
+    
+    info!("Loaded {} backend servers (JSON + Database)", router_config.servers.len());
+    
+    // Create shared backend manager
+    let backend_manager = Arc::new(BackendManager::new());
+    
+    // Create shared router config
+    let shared_router_config = Arc::new(RwLock::new(router_config.clone()));
     
     // Create dashboard state
     let dashboard_state = DashboardState {
@@ -235,6 +283,19 @@ async fn run_combined(config_path: PathBuf, port: u16, enable_auth: bool) -> Res
         router_config: shared_router_config.clone(),
         backend_manager: backend_manager.clone(),
     };
+    
+    // Initialize all backend servers before starting web server
+    info!("Spawning backend servers...");
+    for server in &router_config.servers {
+        match backend_manager.spawn_backend(server.clone()).await {
+            Ok(_) => info!("✅ Spawned backend: {} ({})", server.name, server.id),
+            Err(e) => error!("❌ Failed to spawn backend {}: {}", server.id, e),
+        }
+    }
+    
+    let status = backend_manager.get_status().await;
+    let healthy_count = status.values().filter(|&&h| h).count();
+    info!("Backend initialization complete: {}/{} healthy", healthy_count, status.len());
     
     // Create the simple router with shared backend manager
     let router = SimpleRouter::new_with_manager(router_config, backend_manager.clone());

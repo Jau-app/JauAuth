@@ -12,5 +12,14 @@ echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 
-# Keep the process running by reading from stdin
+# Set DATABASE_URL for SQLx
+export DATABASE_URL="sqlite:jauauth.db"
+
+# Check if release binary exists
+if [ ! -f ./target/release/jau-auth ]; then
+    echo "Release binary not found. Building..."
+    cargo build --release
+fi
+
+# Use the release binary
 exec ./target/release/jau-auth combined --config claude-router-config.json --port 7447

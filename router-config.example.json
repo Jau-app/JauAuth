@@ -1,0 +1,55 @@
+{
+  "servers": [
+    {
+      "id": "jaumemory",
+      "name": "JauMemory - Persistent Memory",
+      "command": "npx",
+      "args": ["-y", "@jaumemory/mcp-server"],
+      "env": {},
+      "requires_auth": false,
+      "allowed_users": []
+    },
+    {
+      "id": "filesystem",
+      "name": "Filesystem Access",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user"],
+      "env": {},
+      "requires_auth": true,
+      "allowed_users": ["admin", "developer"]
+    },
+    {
+      "id": "github",
+      "name": "GitHub Integration",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "requires_auth": true,
+      "allowed_users": ["developer"]
+    },
+    {
+      "id": "brave-search",
+      "name": "Brave Search",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+      },
+      "requires_auth": false,
+      "allowed_users": []
+    },
+    {
+      "id": "postgres",
+      "name": "PostgreSQL Database",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"],
+      "env": {},
+      "requires_auth": true,
+      "allowed_users": ["admin", "analyst"]
+    }
+  ],
+  "timeout_ms": 30000,
+  "cache_tools": true
+}

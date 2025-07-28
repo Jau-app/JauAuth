@@ -6,6 +6,7 @@
     <title>JauAuth Dashboard - MCP Router Management</title>
     <link rel="stylesheet" href="/assets/theme.css">
     <link rel="stylesheet" href="/assets/style.css">
+    <link rel="stylesheet" href="/assets/tools.css">
 </head>
 <body>
     <div id="app">
@@ -62,7 +63,7 @@
                 <section id="servers" class="section">
                     <div class="section-header">
                         <h2>MCP Servers</h2>
-                        <button class="btn btn-primary" onclick="app.showAddServerModal()">
+                        <button class="btn btn-primary" onclick="serverModal.open()">
                             + Add Server
                         </button>
                     </div>
@@ -74,10 +75,7 @@
 
                 <!-- Tools Section -->
                 <section id="tools" class="section">
-                    <h2>Available Tools</h2>
-                    <div class="tools-list" id="toolsList">
-                        <div class="loading">Loading tools...</div>
-                    </div>
+                    <!-- Content will be loaded dynamically from tools module -->
                 </section>
 
                 <!-- Docs Section -->
@@ -95,6 +93,7 @@
                                 <li><a href="#docs-examples" class="docs-link">Examples</a></li>
                                 <li><a href="#docs-timeout" class="docs-link">Timeout Configuration</a></li>
                                 <li><a href="#docs-security" class="docs-link">Security</a></li>
+                                <li><a href="#docs-secure-tokens" class="docs-link">🔐 Secure Token Storage</a></li>
                                 <li><a href="#docs-troubleshooting" class="docs-link">Troubleshooting</a></li>
                             </ul>
                         </div>
@@ -143,6 +142,8 @@ claude mcp add jau-auth -- node "/path/to/jau-auth/mcp-server/dist/index.js"
                                     <li><strong>Automatic Tool Routing</strong>: Tools are prefixed with server IDs (e.g., <code>jaumemory:remember</code>)</li>
                                     <li><strong>Web Dashboard</strong>: Manage servers and monitor status through a modern UI</li>
                                     <li><strong>Security Options</strong>: Multiple sandboxing strategies for server isolation</li>
+                                    <li><strong>🔐 Secure Token Storage</strong>: Environment variable substitution with automatic masking</li>
+                                    <li><strong>Persistent Configuration</strong>: Servers automatically reload after restart</li>
                                     <li><strong>MCP API</strong>: HTTP endpoints for TypeScript-Rust communication</li>
                                 </ul>
                             </section>
@@ -558,14 +559,46 @@ export JAUAUTH_LOG_LEVEL=info                   # Rust log level</code></pre>
   }
 }</code></pre>
                                 
-                                <h4>Example 6: GitHub Server with Authentication</h4>
+                                <h4>Example 6: HuggingFace MCP Server (Secure Token)</h4>
+                                <div class="example-note">
+                                    <strong>✨ NEW:</strong> This example shows the secure token storage feature!
+                                </div>
+                                <pre><code>{
+  "id": "hf-mcp-server",
+  "name": "HuggingFace MCP Server",
+  "command": "npx",
+  "args": [
+    "mcp-remote",
+    "https://huggingface.co/mcp",
+    "--header",
+    "Authorization: Bearer $HF_TOKEN"  // 🔐 Secure reference to env variable
+  ],
+  "env": {
+    "HF_TOKEN": "hf_yourActualTokenHere"  // 🔒 Stored securely, masked in UI
+  },
+  "sandbox": {
+    "strategy": "none",
+    "env_passthrough": ["HOME", "USER", "PATH", "NODE_PATH", "HF_TOKEN"]
+  }
+}</code></pre>
+                                <div class="example-note">
+                                    <strong>🔒 Security Features:</strong>
+                                    <ul>
+                                        <li>Token stored in `env` section (not visible in process list)</li>
+                                        <li>Referenced with `$HF_TOKEN` in args</li>
+                                        <li>Dashboard shows as `hf_y...Here` (masked)</li>
+                                        <li>Get your token from https://huggingface.co/settings/tokens</li>
+                                    </ul>
+                                </div>
+                                
+                                <h4>Example 7: GitHub Server with Secure Authentication</h4>
                                 <pre><code>{
   "id": "github",
   "name": "GitHub Integration",
   "command": "npx",
   "args": ["-y", "@modelcontextprotocol/server-github"],
   "env": {
-    "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+    "GITHUB_TOKEN": "ghp_yourGitHubTokenHere"  // 🔒 Secure storage
   },
   "requires_auth": true,
   "allowed_users": ["developers"],
@@ -575,11 +608,15 @@ export JAUAUTH_LOG_LEVEL=info                   # Rust log level</code></pre>
         "net": true,
         "private_dev": true
       }
-    }
+    },
+    "env_passthrough": ["GITHUB_TOKEN"]  // Pass to sandboxed process
   }
 }</code></pre>
+                                <div class="example-note">
+                                    <strong>💡 Note:</strong> The GITHUB_TOKEN is stored in the env section and automatically masked in the dashboard as `ghp_...Here`.
+                                </div>
                                 
-                                <h4>Example 7: Multi-Server Configuration</h4>
+                                <h4>Example 8: Multi-Server Configuration</h4>
                                 <pre><code>{
   "servers": [
     {
@@ -860,19 +897,107 @@ export JAUAUTH_TOKEN="your-token"
                                     </tbody>
                                 </table>
                                 
-                                <h4>Environment Variables</h4>
+                                <h4>Token Security Best Practices</h4>
+                                <div class="docs-info">
+                                    <p>JauAuth provides secure token storage with automatic masking. See the <a href="#docs-secure-tokens">🔐 Secure Token Storage</a> section for details on how to safely store and use API tokens.</p>
+                                </div>
+                                
                                 <div class="docs-warning">
-                                    <strong>⚠️ Security Warning</strong>
-                                    <p>Never hardcode sensitive values like API keys in your configuration. Use environment variables or secure secret management:</p>
-                                    <pre><code># Good: Reference environment variable
-"env": {
-  "API_KEY": "${API_KEY}"
-}
-
-# Bad: Hardcoded secret
-"env": {
-  "API_KEY": "sk-1234567890abcdef"
+                                    <strong>⚠️ Quick Security Tips</strong>
+                                    <ul>
+                                        <li>Store tokens in the `env` section of your server config</li>
+                                        <li>Reference tokens with `$TOKEN_NAME` syntax in args</li>
+                                        <li>All env values are automatically masked in the dashboard</li>
+                                        <li>Never commit config files with real tokens to version control</li>
+                                        <li>Use meaningful names like HF_TOKEN, GITHUB_TOKEN, etc.</li>
+                                    </ul>
+                                </div>
+                            </section>
+                            
+                            <!-- Secure Token Storage -->
+                            <section id="docs-secure-tokens" class="docs-section">
+                                <h3>🔐 Secure Token Storage</h3>
+                                
+                                <div class="docs-info">
+                                    <p>JauAuth provides secure storage for API keys and tokens with automatic masking and environment variable substitution.</p>
+                                </div>
+                                
+                                <h4>How It Works</h4>
+                                <ol>
+                                    <li><strong>Store tokens in env section</strong>: Add your sensitive tokens to the server's `env` configuration</li>
+                                    <li><strong>Reference in args with $VARIABLE</strong>: Use `$TOKEN_NAME` syntax in command arguments</li>
+                                    <li><strong>Automatic masking</strong>: Dashboard shows tokens as `hf_w...vQV` (first 4 + last 4 chars)</li>
+                                    <li><strong>Secure persistence</strong>: Tokens saved to config file but masked in UI</li>
+                                </ol>
+                                
+                                <div class="example-card">
+                                    <h5>Example: HuggingFace Server with Secure Token</h5>
+                                    <pre><code>{
+  "id": "hf-mcp-server",
+  "name": "HuggingFace MCP Server",
+  "command": "npx",
+  "args": [
+    "mcp-remote",
+    "https://huggingface.co/mcp",
+    "--header",
+    "Authorization: Bearer $HF_TOKEN"  // Reference env variable
+  ],
+  "env": {
+    "HF_TOKEN": "hf_actualTokenValueHere"  // Secure storage
+  },
+  "sandbox": {
+    "strategy": "none",
+    "env_passthrough": ["HOME", "USER", "PATH", "HF_TOKEN"]
+  }
 }</code></pre>
+                                    <div class="example-note">
+                                        <strong>💡 Security Benefits:</strong>
+                                        <ul>
+                                            <li>Token never appears in command line (prevents process listing exposure)</li>
+                                            <li>Dashboard automatically masks all env values</li>
+                                            <li>Actual token stored securely in config file</li>
+                                            <li>Works with any argument that accepts tokens</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                
+                                <h4>Supported Patterns</h4>
+                                <table class="docs-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Pattern</th>
+                                            <th>Example</th>
+                                            <th>Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>$VARIABLE</td>
+                                            <td>Bearer $API_TOKEN</td>
+                                            <td>Simple variable substitution</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Multiple in one arg</td>
+                                            <td>$USER:$PASSWORD</td>
+                                            <td>Multiple substitutions work</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Partial substitution</td>
+                                            <td>https://api.example.com/v1/$API_KEY</td>
+                                            <td>Mix literals and variables</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                
+                                <div class="docs-warning">
+                                    <strong>⚠️ Important Security Notes</strong>
+                                    <ul>
+                                        <li>All values in the `env` section are automatically masked in the dashboard</li>
+                                        <li>Use meaningful variable names (HF_TOKEN, GITHUB_TOKEN, etc.)</li>
+                                        <li>Never commit your config file with real tokens to version control</li>
+                                        <li>Consider using a separate secrets file that's gitignored</li>
+                                        <li>The masking shows first 4 and last 4 characters for verification</li>
+                                    </ul>
                                 </div>
                             </section>
                             
@@ -1134,130 +1259,241 @@ node mcp-server/test-integration.js</code></pre>
             </div>
         </main>
 
-        <!-- Add/Edit Server Modal -->
-        <div id="serverModal" class="modal">
-            <div class="modal-content modal-wide">
-                <div class="modal-header">
-                    <h3 id="modalTitle">Add Server</h3>
-                    <div class="view-toggle">
-                        <button class="toggle-btn active" onclick="app.setEditorView('split')">Split View</button>
-                        <button class="toggle-btn" onclick="app.setEditorView('form')">Form Only</button>
-                        <button class="toggle-btn" onclick="app.setEditorView('json')">JSON Only</button>
-                    </div>
-                    <button class="modal-close" onclick="app.closeModal()">&times;</button>
-                </div>
-                
-                <div class="editor-container" id="editorContainer">
-                    <!-- Form View -->
-                    <div class="editor-pane form-pane" id="formPane">
-                        <form id="serverForm" onsubmit="app.saveServer(event)">
-                            <div class="form-group">
-                                <label for="serverId">Server ID</label>
-                                <input type="text" id="serverId" name="id" required 
-                                       pattern="[a-zA-Z0-9-_]+" 
-                                       placeholder="my-server"
-                                       oninput="app.syncFormToJson()">
-                                <small>Unique identifier for this server</small>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="serverName">Display Name</label>
-                                <input type="text" id="serverName" name="name" required 
-                                       placeholder="My MCP Server"
-                                       oninput="app.syncFormToJson()">
-                                <small>Human-readable name</small>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="serverCommand">Command</label>
-                                <select id="serverCommand" name="command" required
-                                        onchange="app.syncFormToJson()">
-                                    <option value="">Select a command...</option>
-                                    <option value="npx">npx</option>
-                                    <option value="node">node</option>
-                                    <option value="python">python</option>
-                                    <option value="python3">python3</option>
-                                    <option value="cargo">cargo</option>
-                                    <option value="go">go</option>
-                                </select>
-                                <small>The executable to run</small>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="serverArgs">Arguments</label>
-                                <input type="text" id="serverArgs" name="args" 
-                                       placeholder="@modelcontextprotocol/server-filesystem /path/to/data"
-                                       oninput="app.syncFormToJson()">
-                                <small>Space-separated command arguments</small>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="sandboxStrategy">Sandbox Strategy</label>
-                                <select id="sandboxStrategy" name="sandboxStrategy" required
-                                        onchange="app.syncFormToJson()">
-                                    <option value="none">None (Development Only)</option>
-                                    <option value="docker">Docker (High Security)</option>
-                                    <option value="podman">Podman (Rootless Containers)</option>
-                                    <option value="firejail">Firejail (Lightweight)</option>
-                                    <option value="bubblewrap">Bubblewrap (User Namespaces)</option>
-                                </select>
-                                <small>Security isolation method</small>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>
-                                    <input type="checkbox" id="requiresAuth" name="requiresAuth"
-                                           onchange="app.syncFormToJson()">
-                                    Require Authentication
-                                </label>
-                                <small>Users must be authenticated to use this server</small>
-                            </div>
-                            
-                            <div class="form-group" id="allowedUsersGroup" style="display: none;">
-                                <label for="allowedUsers">Allowed Users</label>
-                                <input type="text" id="allowedUsers" name="allowedUsers"
-                                       placeholder="admin, developer, analyst"
-                                       oninput="app.syncFormToJson()">
-                                <small>Comma-separated list of allowed users/roles</small>
-                            </div>
-                        </form>
-                    </div>
-                    
-                    <!-- JSON Editor -->
-                    <div class="editor-pane json-pane" id="jsonPane">
-                        <div class="json-header">
-                            <h4>JSON Configuration</h4>
-                            <button class="btn btn-sm" onclick="app.formatJson()">Format</button>
+        <!-- Server Modal (embedded directly to avoid loading issues) -->
+        <!-- Server Add/Edit Modal -->
+<div id="serverModal" class="modal">
+    <div class="modal-content modal-wide">
+        <div class="modal-header">
+            <h2 id="modalTitle">Add Server</h2>
+            <button class="modal-close" onclick="serverModal.close()">×</button>
+        </div>
+        <div class="modal-body">
+            <!-- Editor Toggle Buttons -->
+            <div class="view-toggle">
+                <button type="button" class="toggle-btn active" onclick="serverModal.setEditorView('split')">
+                    <span class="icon">⚡</span> Split View
+                </button>
+                <button type="button" class="toggle-btn" onclick="serverModal.setEditorView('form')">
+                    <span class="icon">📝</span> Form Only
+                </button>
+                <button type="button" class="toggle-btn" onclick="serverModal.setEditorView('json')">
+                    <span class="icon">{ }</span> JSON Only
+                </button>
+            </div>
+
+            <!-- Split Editor Container -->
+            <div class="editor-container split" id="editorContainer">
+                <!-- Form Editor -->
+                <div class="editor-pane form-pane" id="formPane">
+                    <form id="serverForm" onsubmit="serverModal.save(event)">
+                        <div class="form-group">
+                            <label for="serverId">Server ID</label>
+                            <input type="text" id="serverId" name="serverId" required 
+                                   pattern="[a-zA-Z0-9_\-]+" 
+                                   placeholder="my-server"
+                                   oninput="serverModal.syncFormToJson()">
+                            <small>Unique identifier for this server</small>
                         </div>
-                        <textarea id="jsonEditor" class="json-editor" 
-                                  placeholder="Paste JSON configuration here..."
-                                  oninput="app.syncJsonToForm()"></textarea>
-                        <div id="jsonError" class="json-error"></div>
+                        
+                        <div class="form-group">
+                            <label for="serverName">Display Name</label>
+                            <input type="text" id="serverName" name="name" required 
+                                   placeholder="My Server"
+                                   oninput="serverModal.syncFormToJson()">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="serverCommand">Command</label>
+                            <input type="text" id="serverCommand" name="command" required 
+                                   placeholder="node"
+                                   oninput="serverModal.updateWhitelistForCommand(); serverModal.syncFormToJson()">
+                            <small>Executable command (e.g., node, python, npx)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="serverArgs">Arguments</label>
+                            <textarea id="serverArgs" name="args" rows="4"
+                                      placeholder="One argument per line:&#10;/path/to/server.js&#10;--header&#10;Authorization: Bearer token"
+                                      oninput="serverModal.syncFormToJson()"></textarea>
+                            <small>Enter one argument per line. Arguments with spaces are preserved.</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="envVars">Environment Variables</label>
+                            <textarea id="envVars" name="env" rows="3" 
+                                      placeholder="KEY=value&#10;ANOTHER_KEY=another_value"
+                                      oninput="serverModal.syncFormToJson()"></textarea>
+                            <small>One per line, KEY=value format</small>
+                        </div>
+                        
+                        <div class="form-group checkbox">
+                            <label>
+                                <input type="checkbox" id="requiresAuth" name="requiresAuth"
+                                       onchange="serverModal.syncFormToJson(); serverModal.updateAuthIndicator()">
+                                Requires Authentication
+                            </label>
+                            <div id="authIndicator" style="display: none; margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; color: #856404; font-size: 0.9em;">
+                                <strong>⚠️ Authentication Required</strong><br>
+                                This server needs authentication tokens. Make sure to configure:
+                                <ul style="margin: 5px 0 0 20px; padding-left: 10px;">
+                                    <li>API tokens in environment variables (e.g., HF_TOKEN, GITHUB_TOKEN)</li>
+                                    <li>Auth parameters in arguments (e.g., --token, --api-key)</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" id="allowedUsersGroup">
+                            <label for="allowedUsers">Allowed Users</label>
+                            <input type="text" id="allowedUsers" name="allowedUsers" 
+                                   placeholder="user1, user2"
+                                   oninput="serverModal.syncFormToJson()">
+                            <small>Comma-separated list of usernames (empty = all users)</small>
+                        </div>
+                        
+                        <h4>Sandbox Configuration</h4>
+                        
+                        <div class="form-group">
+                            <label for="sandboxStrategy">Sandbox Strategy</label>
+                            <select id="sandboxStrategy" name="sandboxStrategy" 
+                                    onchange="serverModal.updateSandboxFields(); serverModal.syncFormToJson()">
+                                <option value="none">None (Development Only)</option>
+                                <option value="docker">Docker</option>
+                                <option value="podman">Podman</option>
+                                <option value="firejail">Firejail (Recommended)</option>
+                                <option value="bubblewrap">Bubblewrap</option>
+                            </select>
+                            <small class="form-help">
+                                Note: Some MCP servers may not work with certain sandbox strategies. 
+                                If a server fails to start, try using "None" for testing.
+                            </small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="envPassthrough">Environment Passthrough</label>
+                            <input type="text" id="envPassthrough" name="envPassthrough" 
+                                   value="HOME, USER, PATH"
+                                   placeholder="HOME, USER, PATH"
+                                   oninput="serverModal.syncFormToJson()">
+                            <small>Environment variables to pass to sandbox</small>
+                        </div>
+                        
+                        <!-- Strategy-specific fields -->
+                        <div id="sandboxOptions" class="sandbox-options">
+                            <!-- Docker/Podman options -->
+                            <div id="dockerOptions" class="strategy-options" style="display: none;">
+                                <div class="form-group">
+                                    <label for="dockerImage">Container Image</label>
+                                    <input type="text" id="dockerImage" name="dockerImage" 
+                                           placeholder="node:18-alpine"
+                                           oninput="serverModal.syncFormToJson()">
+                                    <small>Docker/Podman image to use</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dockerMemory">Memory Limit</label>
+                                    <input type="text" id="dockerMemory" name="dockerMemory" 
+                                           placeholder="512m"
+                                           oninput="serverModal.syncFormToJson()">
+                                    <small>Container memory limit (e.g., 512m, 1g)</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dockerMounts">Volume Mounts</label>
+                                    <input type="text" id="dockerMounts" name="dockerMounts" 
+                                           placeholder="/host/path:/container/path"
+                                           oninput="serverModal.syncFormToJson()">
+                                    <small>Comma-separated volume mounts</small>
+                                </div>
+                            </div>
+                            
+                            <!-- Firejail options -->
+                            <div id="firejailOptions" class="strategy-options" style="display: none;">
+                                <div class="form-group">
+                                    <label for="firejailProfile">Security Profile</label>
+                                    <input type="text" id="firejailProfile" name="firejailProfile" 
+                                           value="default" placeholder="default"
+                                           oninput="serverModal.syncFormToJson()">
+                                    <small>Firejail security profile to use</small>
+                                </div>
+                                <div class="form-group checkbox">
+                                    <label>
+                                        <input type="checkbox" id="firejailNet" name="firejailNet" 
+                                               checked onchange="serverModal.syncFormToJson()">
+                                        Enable Network Access
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label for="firejailWhitelist">Whitelist Paths</label>
+                                    <input type="text" id="firejailWhitelist" name="firejailWhitelist" 
+                                           placeholder="/path/to/allow, /another/path"
+                                           oninput="serverModal.syncFormToJson()">
+                                    <small>Comma-separated paths to whitelist</small>
+                                </div>
+                            </div>
+                            
+                            <!-- Bubblewrap options -->
+                            <div id="bubblewrapOptions" class="strategy-options" style="display: none;">
+                                <div class="form-group checkbox">
+                                    <label>
+                                        <input type="checkbox" id="bubblewrapNet" name="bubblewrapNet" 
+                                               checked onchange="serverModal.syncFormToJson()">
+                                        Share Network Namespace
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label for="bubblewrapBinds">Read-Only Binds</label>
+                                    <input type="text" id="bubblewrapBinds" name="bubblewrapBinds" 
+                                           placeholder="/host/path:/sandbox/path"
+                                           oninput="serverModal.syncFormToJson()">
+                                    <small>Comma-separated read-only bind mounts</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group checkbox">
+                            <label>
+                                <input type="checkbox" id="persistToConfig" name="persistToConfig" checked>
+                                Save to configuration file
+                            </label>
+                            <small>Persist this server configuration across restarts</small>
+                        </div>
+                    </form>
+                    
+                    <div class="modal-footer">
+                        <div class="footer-info">
+                            <span id="serverStatus"></span>
+                        </div>
+                        <div class="footer-actions">
+                            <button type="submit" form="serverForm" class="btn btn-primary" id="saveServerBtn">
+                                Add Server
+                            </button>
+                        </div>
                     </div>
+                    </form>
                 </div>
                 
-                <div class="modal-footer">
-                    <div class="footer-info">
+                <!-- JSON Editor -->
+                <div class="editor-pane json-pane" id="jsonPane">
+                    <div class="json-header">
+                        <h4>JSON Configuration</h4>
                         <span id="validationStatus" class="validation-status"></span>
                     </div>
-                    <div class="footer-actions">
-                        <label class="save-config-toggle">
-                            <input type="checkbox" id="persistToConfig" checked>
-                            <span>💾 Save to config file</span>
-                        </label>
-                        <button type="button" class="btn btn-secondary" onclick="app.closeModal()">
-                            Cancel
-                        </button>
-                        <button type="button" class="btn btn-primary" onclick="app.saveServer(event)">
-                            Save Server
+                    <div class="json-editor-wrapper">
+                        <textarea id="jsonEditor" class="json-editor" 
+                                  oninput="serverModal.syncJsonToForm()"></textarea>
+                        <div id="jsonError" class="json-error"></div>
+                    </div>
+                    <div class="json-actions">
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="app.formatJson()">
+                            Format JSON
                         </button>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
+</div>
 
-        <!-- Tool Test Modal -->
-        <div id="toolModal" class="modal">
+        <!-- Tool Test Modal - MOVED TO tools.html -->
+        <!-- <div id="toolModal" class="modal">
             <div class="modal-content">
                 <div class="modal-header">
                     <h3>Test Tool</h3>
@@ -1267,7 +1503,10 @@ node mcp-server/test-integration.js</code></pre>
                     <!-- Dynamic content -->
                 </div>
             </div>
-        </div>
+        </div> -->
+        
+        <!-- Toast Container -->
+        <div id="toastContainer" class="toast-container"></div>
         
         <!-- API Token Modal -->
         <div id="apiTokenModal" class="modal">
@@ -1367,6 +1606,13 @@ token = "your-token-here"</pre>
         </div>
     </div>
 
+    <script src="/assets/server-modal.js"></script>
+    <script src="/assets/tools.js"></script>
+    <script src="/assets/tools-module.js"></script>
     <script src="/assets/app.js"></script>
+    <script>
+        // Initialize the server modal (now embedded directly in HTML)
+        serverModal.init(app);
+    </script>
 </body>
 </html>
