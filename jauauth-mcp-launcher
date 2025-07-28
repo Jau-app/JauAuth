@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# JauAuth MCP Router Launcher for Claude
+
+# Get script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Set required environment variables
+export DATABASE_URL="sqlite:///${SCRIPT_DIR}/jauauth.db"
+export JWT_SECRET="${JWT_SECRET:-development-secret-please-change-in-production}"
+export USER="${USER:-$(whoami)}"
+export RUST_BACKEND_URL="http://localhost:7447"
+export API_TIMEOUT="30000"
+export LOG_LEVEL="info"
+
+# Change to script directory
+cd "${SCRIPT_DIR}"
+
+# Start the Rust backend in combined mode (background)
+"${SCRIPT_DIR}/target/release/jau-auth" combined --config "${SCRIPT_DIR}/claude-router-config.json" --port 7447 >/tmp/jauauth-backend.log 2>&1 &
+BACKEND_PID=$!
+
+# Give backend time to start
+sleep 2
+
+# Function to cleanup on exit
+cleanup() {
+    if [ -n "$BACKEND_PID" ]; then
+        kill $BACKEND_PID 2>/dev/null
+    fi
+}
+trap cleanup EXIT
+
+# Launch the TypeScript MCP server (foreground)
+exec node "${SCRIPT_DIR}/mcp-server/dist/index.js"
